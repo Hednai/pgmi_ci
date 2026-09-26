@@ -1,0 +1,86 @@
+/* ============================================
+   index.css
+   Fondations visuelles : identité « Tricolore Maritime » de la spécification
+   de design (navy institutionnel, orange ivoirien, vert national).
+
+   Les couleurs, rayons et ombres sont déclarés comme jetons Tailwind v4
+   dans @theme : aucun composant ne code une valeur hexadécimale en dur.
+   ============================================ */
+
+@import "tailwindcss";
+
+@theme {
+  /* Bleu institutionnel : autorité, fond de la navigation */
+  --color-navy: #003049;
+  --color-navy-light: #005f73;
+  --color-navy-soft: #e6edf1;
+
+  /* Orange ivoirien : action principale, appels à l'action */
+  --color-orange-ci: #f77f00;
+  --color-orange-soft: #fff2e0;
+
+  /* Teal maritime : accents secondaires */
+  --color-teal-sea: #065a60;
+
+  /* Vert national : validité, conformité */
+  --color-vert-ci: #009e60;
+  --color-succes: #0a8a3e;
+  --color-succes-soft: #e6f6ec;
+
+  /* Alertes */
+  --color-alerte: #f77f00;
+  --color-alerte-soft: #fff4e5;
+  --color-erreur: #dc2626;
+  --color-erreur-soft: #fee2e2;
+
+  /* Neutres */
+  --color-ardoise: #64748b;
+  --color-fond: #f1f5f9;
+  --color-bordure: #e2e8f0;
+
+  /* Typographie : Space Grotesk pour les titres, système pour le corps.
+     La police est chargée localement si disponible, sans requête réseau
+     bloquante : le premier affichage ne dépend pas d'une police distante. */
+  --font-titre: "Space Grotesk", system-ui, -apple-system, sans-serif;
+  --font-corps: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --radius-carte: 0.875rem;
+
+  /* Largeur de la barre latérale du poste agent */
+  --spacing-sidebar: 15rem;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: var(--font-corps);
+    background-color: var(--color-fond);
+    color: var(--color-navy);
+    margin: 0;
+    /* Encoches et barres système des téléphones récents */
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-titre);
+    font-weight: 600;
+  }
+
+  /* Cible tactile minimale de 44 px (ENF-012, accessibilité) */
+  button,
+  a[role="button"] {
+    min-height: 2.75rem;
+  }
+
+  /* Les identifiants maritimes se lisent caractère par caractère */
+  .matricule {
+    font-family: var(--font-mono);
+    letter-spacing: 0.04em;
+  }
+}

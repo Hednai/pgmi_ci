@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Vérification de document | DGAM Côte d'Ivoire</title>
+    <!--
+      Page publique de vérification QR.
+
+      Contrainte ENF-008 : ouverture sous une seconde en 2G. Ni framework,
+      ni police distante, ni image externe. Un seul appel réseau, vers
+      /api/v/<code>. Tout le style est en ligne pour éviter un aller-retour
+      supplémentaire.
+    -->
+    <style>
+      :root {
+        --navy: #003049;
+        --navy-light: #005f73;
+        --orange: #f77f00;
+        --vert: #009e60;
+        --succes: #0a8a3e;
+        --erreur: #dc2626;
+        --gris: #64748b;
+        --fond: #f1f5f9;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        background: var(--fond);
+        color: var(--navy);
+      }
+      header {
+        background: var(--navy);
+        color: #fff;
+        padding: 16px 20px;
+      }
+      header p { margin: 0; font-size: 13px; opacity: 0.75; }
+      header h1 { margin: 2px 0 0; font-size: 17px; font-weight: 600; }
+      main { max-width: 520px; margin: 0 auto; padding: 20px; }
+      .carte {
+        background: #fff;
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: 0 1px 3px rgba(0, 48, 73, 0.12);
+      }
+      .bandeau {
+        border-radius: 12px;
+        padding: 18px;
+        text-align: center;
+        color: #fff;
+        margin-bottom: 18px;
+      }
+      .bandeau h2 { margin: 8px 0 4px; font-size: 20px; }
+      .bandeau p { margin: 0; font-size: 14px; opacity: 0.92; }
+      .valide { background: var(--succes); }
+      .invalide { background: var(--erreur); }
+      .attention { background: var(--orange); }
+      .pictogramme { font-size: 34px; line-height: 1; }
+      dl { margin: 0; }
+      .ligne {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 11px 0;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: 14px;
+      }
+      .ligne:last-child { border-bottom: 0; }
+      dt { color: var(--gris); margin: 0; }
+      dd { margin: 0; font-weight: 600; text-align: right; }
+      .mono { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; letter-spacing: 0.5px; }
+      .photo {
+        width: 84px;
+        height: 84px;
+        border-radius: 10px;
+        object-fit: cover;
+        display: block;
+        margin: 0 auto 14px;
+        border: 2px solid #e2e8f0;
+      }
+      footer {
+        text-align: center;
+        font-size: 12px;
+        color: var(--gris);
+        padding: 22px 20px 34px;
+        line-height: 1.6;
+      }
+      .chargement { text-align: center; padding: 40px 0; color: var(--gris); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <p>République de Côte d'Ivoire</p>
+      <h1>Direction des Affaires Maritimes</h1>
+    </header>
+
+    <main>
+      <div id="contenu" class="chargement">Vérification en cours…</div>
+    </main>
+
+    <footer>
+      Vérification officielle du registre national des gens de mer.<br />
+      En cas de doute sur un document, contactez la DGAM.
+    </footer>
+
+    <script>
+      // Le code est le dernier segment de l'URL : /v/A3F7K2
+      var code = window.location.pathname.split("/").filter(Boolean).pop() || "";
+      var contenu = document.getElementById("contenu");
+
+      // Échappement systématique : aucune donnée du serveur n'est injectée
+      // en HTML sans passer par ici.
+      function echapper(valeur) {
+        return String(valeur === null || valeur === undefined ? "" : valeur)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function ligne(libelle, valeur, mono) {
+        if (!valeur) return "";
+        return (
+          '<div class="ligne"><dt>' +
+          echapper(libelle) +
+          "</dt><dd" +
+          (mono ? ' class="mono"' : "") +
+          ">" +
+          echapper(valeur) +
+          "</dd></div>"
+        );
+      }
+
+      function afficher(donnees) {
+        var classe = donnees.valide
+          ? "valide"
+          : donnees.statut === "EXPIRED" || donnees.statut === "REPLACED"
+            ? "attention"
+            : "invalide";
+        var pictogramme = donnees.valide ? "✓" : donnees.statut === "EXPIRED" ? "!" : "×";
+
+        var html =
+          '<div class="bandeau ' +
+          classe +
+          '"><div class="pictogramme">' +
+          pictogramme +
+          "</div><h2>" +
+          echapper(donnees.libelleStatut) +
+          "</h2><p>" +
+          echapper(donnees.message) +
+          "</p></div>";
+
+        if (donnees.document) {
+          var doc = donnees.document;
+          html += '<div class="carte">';
+          if (doc.photoUrl) {
+            html += '<img class="photo" alt="" src="' + echapper(doc.photoUrl) + '" />';
+          }
+          html += "<dl>";
+          html += ligne("Document", doc.certificat);
+          html += ligne("Titulaire", doc.titulaire);
+          html += ligne("Matricule", doc.matricule, true);
+          html += ligne("Fonction", doc.fonction);
+          html += ligne("Numéro", doc.numero, true);
+          html += ligne("Délivré le", doc.delivreLe);
+          html += ligne("Expire le", doc.expireLe);
+          html += ligne("Autorité", doc.autorite);
+          html += ligne("Code de vérification", doc.code, true);
+          if (donnees.remplacePar) {
+            html += ligne("Remplacé par le code", donnees.remplacePar, true);
+          }
+          html += "</dl></div>";
+        }
+
+        contenu.className = "";
+        contenu.innerHTML = html;
+      }
+
+      if (!code) {
+        contenu.textContent = "Aucun code de vérification fourni.";
+      } else {
+        fetch("/api/v/" + encodeURIComponent(code))
+          .then(function (reponse) {
+            return reponse.json();
+          })
+          .then(function (corps) {
+            afficher(corps.data);
+          })
+          .catch(function () {
+            contenu.textContent =
+              "Vérification impossible. Contrôlez votre connexion et réessayez.";
+          });
+      }
+    </script>
+  </body>
+</html>

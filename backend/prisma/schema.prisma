@@ -1,0 +1,458 @@
+// ============================================
+// prisma/schema.prisma
+// Modèle de données PGMI (18 entités).
+//
+// Le provider est SQLite par défaut afin que le projet démarre sans
+// infrastructure externe. Pour passer en PostgreSQL (Supabase, Neon, Render),
+// une seule ligne change dans le bloc datasource : aucun champ du schéma
+// n'est spécifique à SQLite.
+//
+// Choix assumé : aucun enum Prisma. Les statuts sont des chaînes validées
+// par les constantes de src/domain/status.ts. Deux raisons :
+//   1. portabilité SQLite / PostgreSQL sans réécriture du schéma ;
+//   2. les référentiels sont administrables par la DGAM (exigence EF-015),
+//      un enum figé dans le code irait contre cette exigence.
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" // PostgreSQL : remplacer par "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---- Autorités et agents ----
+
+// Autorité maritime. Hiérarchie : DGAM (racine), antennes régionales et
+// institutions de formation (ARSTM). Le champ authorityId prépare le
+// multi-pays sans l'activer (ENF-015).
+model Authority {
+  id        String      @id @default(cuid())
+  code      String      @unique
+  name      String
+  level     String // NATIONAL | REGIONAL_OFFICE | TRAINING_INSTITUTION
+  country   String      @default("CI")
+  city      String?
+  parentId  String?
+  parent    Authority?  @relation("AuthorityHierarchy", fields: [parentId], references: [id])
+  children  Authority[] @relation("AuthorityHierarchy")
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  agents           Agent[]
+  marins           Marin[]
+  trainingSessions TrainingSession[]
+
+  @@index([parentId])
+}
+
+// Agent d'une autorité : DGAM (agent, superviseur, administrateurs) ou
+// ARSTM (formation, scolarité, responsable). Le rôle est contrôlé par le RBAC.
+model Agent {
+  id              String    @id @default(cuid())
+  authorityId     String
+  authority       Authority @relation(fields: [authorityId], references: [id])
+  email           String    @unique
+  passwordHash    String
+  firstName       String
+  lastName        String
+  role            String // voir domain/roles.ts
+  isActive        Boolean   @default(true)
+  // Invalide tous les jetons émis avant cette date (déconnexion serveur)
+  tokensRevokedAt DateTime?
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  marinsCreated       Marin[]           @relation("MarinCreatedBy")
+  marinsValidated     Marin[]           @relation("MarinValidatedBy")
+  documentsVerified   Document[]        @relation("DocumentVerifiedBy")
+  embarkationsChecked Embarkation[]     @relation("EmbarkationVerifiedBy")
+  requestsAssigned    RenewalRequest[]  @relation("RequestAssignedTo")
+  requestsSubmitted   RenewalRequest[]  @relation("RequestSubmittedBy")
+  requestsDecided     RenewalRequest[]  @relation("RequestDecidedBy")
+  sessionsCreated     TrainingSession[] @relation("SessionCreatedBy")
+
+  @@index([authorityId])
+  @@index([role])
+}
+
+// ---- Marin ----
+
+// Dossier professionnel maritime. Le matricule n'est attribué qu'à
+// l'activation : guichet DGAM, ou validation DGAM d'une inscription ARSTM (R20).
+model Marin {
+  id                 String    @id @default(cuid())
+  authorityId        String
+  authority          Authority @relation(fields: [authorityId], references: [id])
+  matricule          String?   @unique
+  phone              String    @unique
+  email              String?
+  firstName          String
+  lastName           String
+  birthDate          DateTime
+  birthPlace         String
+  nationality        String    @default("Ivoirienne")
+  idNumber           String
+  photoUrl           String?
+  region             String?
+  shipCategory       String?
+  fonctionId         String?
+  fonction           Fonction? @relation(fields: [fonctionId], references: [id])
+  status             String    @default("PENDING")
+  // SELF_ONLINE | DGAM_DESK | ARSTM_ENROLLMENT (R19)
+  registrationSource String    @default("SELF_ONLINE")
+  // Élève navigant ARSTM tant que le cursus n'est pas terminé
+  isCadet            Boolean   @default(false)
+  notifySms          Boolean   @default(true) // R17 : non désactivable côté serveur
+  notifyWhatsapp     Boolean   @default(true)
+  notifyEmail        Boolean   @default(false)
+  createdById        String?
+  createdBy          Agent?    @relation("MarinCreatedBy", fields: [createdById], references: [id])
+  validatedById      String?
+  validatedBy        Agent?    @relation("MarinValidatedBy", fields: [validatedById], references: [id])
+  validatedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  documents     Document[]
+  embarkations  Embarkation[]
+  requests      RenewalRequest[]
+  notifications MarinNotification[]
+  enrollments   TrainingEnrollment[]
+
+  @@index([status])
+  @@index([authorityId])
+  @@index([registrationSource])
+}
+
+// Code OTP à usage unique. Seul le hachage du code est stocké.
+model OtpCode {
+  id         String    @id @default(cuid())
+  phone      String
+  codeHash   String
+  purpose    String    @default("LOGIN")
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, createdAt])
+}
+
+// ---- Référentiels administrables (EF-015) ----
+
+// Fonction maritime exercée à bord.
+model Fonction {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  label     String
+  category  String   @default("PONT") // PONT | MACHINE | GENERAL
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  marins       Marin[]
+  embarkations Embarkation[]
+}
+
+// Type de certificat (BST, PSSR, GMDSS, livret maritime, médical...).
+model CertificateType {
+  id               String   @id @default(cuid())
+  code             String   @unique
+  label            String
+  category         String // STCW | MEDICAL | SEAMAN_BOOK | OTHER
+  validityMonths   Int?
+  // Le renouvellement passe-t-il par une formation ARSTM ? (module A)
+  requiresTraining Boolean  @default(false)
+  trainingDays     Int?
+  description      String?
+  sortOrder        Int      @default(0)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  documents       Document[]
+  requests        RenewalRequest[]
+  fees            FeeSchedule[]
+  sessions        TrainingSession[]
+  enrollments     TrainingEnrollment[]
+  requirementsFor CertificateRequirement[] @relation("RequirementTarget")
+  requiredBy      CertificateRequirement[] @relation("RequirementSource")
+}
+
+// Prérequis d'un certificat cible : un autre certificat, ou un volume de
+// service en mer. Alimente le moteur de conformité.
+model CertificateRequirement {
+  id              String           @id @default(cuid())
+  targetId        String
+  target          CertificateType  @relation("RequirementTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  requiredTypeId  String?
+  requiredType    CertificateType? @relation("RequirementSource", fields: [requiredTypeId], references: [id])
+  requiredSeaDays Int?
+  label           String
+  sortOrder       Int              @default(0)
+
+  @@index([targetId])
+}
+
+// Barème des frais, par type de certificat et type de demande.
+model FeeSchedule {
+  id                String          @id @default(cuid())
+  certificateTypeId String
+  certificateType   CertificateType @relation(fields: [certificateTypeId], references: [id], onDelete: Cascade)
+  requestType       String
+  amount            Int
+  currency          String          @default("XOF")
+  isActive          Boolean         @default(true)
+
+  @@unique([certificateTypeId, requestType])
+}
+
+// ---- Documents ----
+
+// Document du dossier marin. Un document approuvé est immuable (R2).
+model Document {
+  id                String          @id @default(cuid())
+  marinId           String
+  marin             Marin           @relation(fields: [marinId], references: [id], onDelete: Cascade)
+  certificateTypeId String
+  certificateType   CertificateType @relation(fields: [certificateTypeId], references: [id])
+  number            String?
+  issueDate         DateTime?
+  expiryDate        DateTime?
+  issuedPlace       String?
+  status            String          @default("SCANNED")
+  fileUrl           String?
+  // Code court imprimé sous le QR : /v/<verificationCode>
+  verificationCode  String?         @unique
+  // Jeton signé encodé dans le QR, vérifiable hors ligne en V2
+  qrToken           String?
+  verifiedById      String?
+  verifiedBy        Agent?          @relation("DocumentVerifiedBy", fields: [verifiedById], references: [id])
+  verifiedAt        DateTime?
+  // Chaînage de version : l'ancien document pointe vers son remplaçant
+  replacedById      String?         @unique
+  replacedBy        Document?       @relation("DocumentVersion", fields: [replacedById], references: [id])
+  replaces          Document?       @relation("DocumentVersion")
+  revokedReason     String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  requests         RenewalRequest[]
+  verificationLogs QRVerificationLog[]
+
+  @@index([marinId])
+  @@index([status])
+  @@index([expiryDate])
+}
+
+// ---- Sea Service Record ----
+
+// Embarquement déclaré par le marin. Seuls les jours vérifiés comptent
+// pour le moteur de conformité (R13).
+model Embarkation {
+  id           String    @id @default(cuid())
+  marinId      String
+  marin        Marin     @relation(fields: [marinId], references: [id], onDelete: Cascade)
+  vesselName   String
+  imoNumber    String?
+  flag         String?
+  vesselType   String?
+  fonctionId   String?
+  fonction     Fonction? @relation(fields: [fonctionId], references: [id])
+  startDate    DateTime
+  endDate      DateTime
+  // Calculé côté serveur, jamais fourni par le client
+  days         Int       @default(0)
+  status       String    @default("DECLARED")
+  proofUrl     String?
+  rejectReason String?
+  verifiedById String?
+  verifiedBy   Agent?    @relation("EmbarkationVerifiedBy", fields: [verifiedById], references: [id])
+  verifiedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([marinId])
+  @@index([status])
+}
+
+// ---- Demandes ----
+
+// Demande de renouvellement ou de première délivrance.
+// submittedByRole trace une soumission faite par l'ARSTM au nom d'un élève (R21).
+model RenewalRequest {
+  id                String          @id @default(cuid())
+  reference         String          @unique
+  marinId           String
+  marin             Marin           @relation(fields: [marinId], references: [id], onDelete: Cascade)
+  certificateTypeId String
+  certificateType   CertificateType @relation(fields: [certificateTypeId], references: [id])
+  sourceDocumentId  String?
+  sourceDocument    Document?       @relation(fields: [sourceDocumentId], references: [id])
+  type              String
+  reason            String?
+  status            String          @default("SUBMITTED")
+  feeAmount         Int             @default(0)
+  currency          String          @default("XOF")
+  submittedById     String?
+  submittedBy       Agent?          @relation("RequestSubmittedBy", fields: [submittedById], references: [id])
+  submittedByRole   String          @default("MARIN")
+  assignedToId      String?
+  assignedTo        Agent?          @relation("RequestAssignedTo", fields: [assignedToId], references: [id])
+  assignedAt        DateTime?
+  decidedById       String?
+  decidedBy         Agent?          @relation("RequestDecidedBy", fields: [decidedById], references: [id])
+  decidedAt         DateTime?
+  decisionReason    String?
+  additionalInfo    String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  attachments RequestAttachment[]
+  payments    Payment[]
+
+  @@index([marinId])
+  @@index([status])
+  @@index([assignedToId])
+}
+
+// Pièce justificative jointe à une demande.
+model RequestAttachment {
+  id        String         @id @default(cuid())
+  requestId String
+  request   RenewalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  fileName  String
+  fileUrl   String
+  mimeType  String
+  size      Int
+  createdAt DateTime       @default(now())
+
+  @@index([requestId])
+}
+
+// Paiement des frais de dossier (Mobile Money ou espèces au guichet).
+model Payment {
+  id          String         @id @default(cuid())
+  requestId   String
+  request     RenewalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  provider    String
+  channel     String // MOBILE_MONEY | CASH
+  amount      Int
+  currency    String         @default("XOF")
+  status      String         @default("PENDING")
+  payerPhone  String?
+  externalRef String?        @unique
+  receiptUrl  String?
+  paidAt      DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([requestId])
+}
+
+// ---- Formation ARSTM ----
+
+// Session de formation organisée par un institut. Une session ne démarre
+// pas sous le seuil de quorum configurable (R15).
+model TrainingSession {
+  id                String          @id @default(cuid())
+  code              String          @unique
+  authorityId       String
+  authority         Authority       @relation(fields: [authorityId], references: [id])
+  certificateTypeId String
+  certificateType   CertificateType @relation(fields: [certificateTypeId], references: [id])
+  startDate         DateTime?
+  endDate           DateTime?
+  location          String?
+  trainer           String?
+  capacity          Int             @default(20)
+  minQuorum         Int             @default(5)
+  status            String          @default("WAITING_FOR_QUORUM")
+  createdById       String?
+  createdBy         Agent?          @relation("SessionCreatedBy", fields: [createdById], references: [id])
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  enrollments TrainingEnrollment[]
+
+  @@index([certificateTypeId])
+  @@index([status])
+}
+
+// Inscription d'un marin à une formation. Créée par le marin, par l'ARSTM,
+// ou automatiquement par le scan d'expiration (statut PROPOSED, module B).
+model TrainingEnrollment {
+  id                String           @id @default(cuid())
+  marinId           String
+  marin             Marin            @relation(fields: [marinId], references: [id], onDelete: Cascade)
+  certificateTypeId String
+  certificateType   CertificateType  @relation(fields: [certificateTypeId], references: [id])
+  sessionId         String?
+  session           TrainingSession? @relation(fields: [sessionId], references: [id])
+  status            String           @default("PROPOSED")
+  source            String           @default("MARIN") // MARIN | ARSTM | SYSTEM_EXPIRY_SCAN
+  result            String? // PASSED | FAILED
+  attended          Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([marinId])
+  @@index([status])
+}
+
+// ---- Notifications et traçabilité ----
+
+// Trace d'une notification envoyée à un marin (SMS, WhatsApp, email).
+model MarinNotification {
+  id        String    @id @default(cuid())
+  marinId   String
+  marin     Marin     @relation(fields: [marinId], references: [id], onDelete: Cascade)
+  channel   String // SMS | WHATSAPP | EMAIL
+  event     String
+  content   String
+  status    String    @default("SENT")
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([marinId, createdAt])
+}
+
+// Journal immuable. Aucune route d'écriture ni de suppression n'est exposée :
+// seul logAction() écrit ici (R5).
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorType  String // AGENT | MARIN | SYSTEM | PUBLIC
+  actorId    String?
+  actorLabel String?
+  action     String
+  targetType String?
+  targetId   String?
+  ip         String?
+  userAgent  String?
+  metadata   String? // JSON sérialisé
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId])
+  @@index([targetType, targetId])
+}
+
+// Trace de chaque scan de QR code, y compris les codes inconnus.
+model QRVerificationLog {
+  id               String    @id @default(cuid())
+  verificationCode String
+  documentId       String?
+  document         Document? @relation(fields: [documentId], references: [id])
+  result           String // FOUND | NOT_FOUND
+  ip               String?
+  userAgent        String?
+  createdAt        DateTime  @default(now())
+
+  @@index([verificationCode])
+  @@index([createdAt])
+}
