@@ -10,9 +10,10 @@ import { useAuthStore } from "../../stores/authStore.js";
 import { Button } from "../../components/atoms/Button.js";
 import { InputField } from "../../components/atoms/Field.js";
 import { Alerte } from "../../components/atoms/Feedback.js";
+import { Icone } from "../../components/atoms/Icone.js";
 import type { Agent } from "../../types/api.js";
 
-export const ConnexionAgentPage = () => {
+export function ConnexionAgentPage() {
   const [email, setEmail] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
   const [erreur, setErreur] = useState("");
@@ -41,17 +42,23 @@ export const ConnexionAgentPage = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-navy px-5">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-navy to-navy-light px-5 py-10">
       <div className="w-full max-w-sm">
-        <div className="mb-6 text-center text-white">
-          <p className="text-[11px] uppercase tracking-wide text-white/60">
+        <div className="mb-7 text-center text-white">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white/12">
+            <Icone nom="verifications" taille={28} />
+          </div>
+
+          <p className="mt-4 text-[11px] uppercase tracking-wide text-white/60">
             {t.commun.republique}
           </p>
-          <h1 className="mt-1 font-titre text-2xl font-bold">{t.commun.application}</h1>
-          <p className="mt-1 text-sm text-white/70">{t.auth.espaceAgent}</p>
+          <h1 className="mt-1 font-titre text-3xl font-bold tracking-tight">
+            {t.commun.application}
+          </h1>
+          <p className="mt-1.5 text-sm text-white/70">{t.auth.espaceAgent}</p>
         </div>
 
-        <div className="space-y-4 rounded-carte bg-white p-5">
+        <div className="space-y-4 rounded-2xl bg-white p-5 shadow-xl">
           <InputField
             label={t.auth.email}
             type="email"
@@ -93,4 +100,4 @@ export const ConnexionAgentPage = () => {
       </div>
     </div>
   );
-};
+}

@@ -12,6 +12,22 @@ import type { ReponseApi } from "../types/api.js";
 
 const BASE = import.meta.env.VITE_API_URL ?? "";
 
+// Mode démonstration : les requêtes sont servies par un jeu de données local
+// au lieu du réseau. Il permet de présenter la plateforme sans backend
+// déployé. Toute autre valeur que "true" laisse le comportement réseau normal.
+const MODE_DEMO = import.meta.env.VITE_MODE_DEMO === "true";
+
+// Le serveur de démonstration et son jeu de données sont chargés à la
+// demande, et une seule fois. Hors mode démonstration, ce code ne part
+// jamais sur le réseau : il forme un fragment séparé que le navigateur
+// ne télécharge pas.
+let chargementServeurDemo: Promise<typeof import("../mocks/serveurDemo.js")> | null = null;
+
+const obtenirServeurDemo = () => {
+  chargementServeurDemo = chargementServeurDemo ?? import("../mocks/serveurDemo.js");
+  return chargementServeurDemo;
+};
+
 // Clés de stockage. Le jeton de rafraîchissement est conservé en
 // localStorage : sans cela, un marin devrait ressaisir un code SMS à chaque
 // ouverture de l'application, ce qui est inacceptable sur le terrain.
@@ -77,6 +93,25 @@ const rafraichirJeton = async (): Promise<boolean> => {
 };
 
 const executer = async <T>(chemin: string, options: OptionsRequete, reessai = true): Promise<T> => {
+  // Interception du mode démonstration, avant toute sortie réseau. Un chemin
+  // non géré par le serveur local repart vers l'API comme d'habitude.
+  if (MODE_DEMO) {
+    const { repondreEnModeDemo } = await obtenirServeurDemo();
+    const reponseDemo = await repondreEnModeDemo(
+      chemin,
+      options.methode ?? "GET",
+      options.corps,
+      options.publique ? null : jetons.lireAcces(),
+    );
+
+    if (reponseDemo.traite) {
+      if (reponseDemo.erreur) {
+        throw new ErreurApi(reponseDemo.erreur.message, reponseDemo.erreur.statut);
+      }
+      return reponseDemo.donnees as T;
+    }
+  }
+
   const entetes: Record<string, string> = {};
   if (options.corps !== undefined) entetes["Content-Type"] = "application/json";
 

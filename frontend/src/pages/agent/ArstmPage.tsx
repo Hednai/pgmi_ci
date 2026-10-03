@@ -11,6 +11,7 @@ import { t, libelle } from "../../i18n/index.js";
 import { api, ErreurApi } from "../../lib/apiClient.js";
 import { useReferentielStore } from "../../stores/referentielStore.js";
 import { Card, EtatVide, SectionTitre } from "../../components/atoms/Card.js";
+import { EnteteAgent } from "../../components/layouts/EnteteAgent.js";
 import { StatCard } from "../../components/molecules/StatCard.js";
 import { BadgeStatut } from "../../components/atoms/Badge.js";
 import { Button } from "../../components/atoms/Button.js";
@@ -21,7 +22,7 @@ import type { Pagine, SessionFormation, SyntheseArstm } from "../../types/api.js
 
 type Onglet = "file" | "sessions" | "eleves";
 
-export const ArstmPage = () => {
+export function ArstmPage() {
   const [onglet, setOnglet] = useState<Onglet>("file");
   const [synthese, setSynthese] = useState<SyntheseArstm | null>(null);
   const [sessions, setSessions] = useState<Pagine<SessionFormation> | null>(null);
@@ -132,11 +133,10 @@ export const ArstmPage = () => {
   if (!synthese || !sessions) return <ChargementPage />;
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="font-titre text-xl font-bold text-navy">{t.arstm.titre}</h1>
-        <p className="text-sm text-ardoise">{t.arstm.sousTitre}</p>
-      </div>
+    <div>
+      <EnteteAgent titre={t.arstm.titre} sousTitre={t.arstm.sousTitre} icone="formations" />
+
+      <div className="space-y-5">
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard
@@ -474,5 +474,6 @@ export const ArstmPage = () => {
         </Card>
       )}
     </div>
+    </div>
   );
-};
+}

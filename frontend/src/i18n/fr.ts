@@ -32,6 +32,7 @@ export const fr = {
     non: "Non",
     deconnexion: "Se déconnecter",
     fermer: "Fermer",
+    modeDemonstration: "Mode démonstration, aucun débit réel.",
   },
 
   auth: {
@@ -54,6 +55,9 @@ export const fr = {
     motDePasse: "Mot de passe",
     connexion: "Se connecter",
     codeDeveloppement: "Code de développement",
+    prefixePays: "+225",
+    expireDans: "Le code expire dans",
+    renvoyerWhatsapp: "Renvoyer par WhatsApp",
   },
 
   inscription: {
@@ -106,6 +110,12 @@ export const fr = {
     nouvelleDemande: "Nouvelle demande",
     ajouterDocument: "Ajouter un document",
     declarerEmbarquement: "Déclarer un embarquement",
+    monQrCode: "Mon QR Code",
+    maConformite: "Ma conformité",
+    progressionBrevet: "Progression vers le brevet",
+    dernieresDemandes: "Dernières demandes",
+    aucuneDemande: "Aucune demande en cours.",
+    joursRestants: "restants",
   },
 
   documents: {
@@ -124,10 +134,19 @@ export const fr = {
     qrInstruction:
       "Présentez ce code à un inspecteur. Il affiche l'authenticité du document sans consulter le dossier complet.",
     codeVerification: "Code de vérification",
+    filtreTous: "Tous",
+    filtreStcw: "STCW",
+    filtreMedical: "Médical",
+    filtreNational: "Livret",
+    verifieParDgam: "Vérifié par la DGAM, QR actif",
+    renouveler: "Renouveler",
     statut: {
       SCANNED: "En attente de vérification",
+      DIGITIZED: "Numérisé, non vérifié",
+      DIGITIZED_DAM: "Numérisé par la DGAM",
       VERIFIED: "Vérifié",
       OFFICIAL_DIGITAL: "Officiel numérique",
+      EXPIRING_SOON: "Expire bientôt",
       EXPIRED: "Expiré",
       REPLACED: "Remplacé",
       REJECTED: "Rejeté",
@@ -153,6 +172,11 @@ export const fr = {
     preuveAide:
       "Attestation d'armateur ou page du livret. Sans preuve, les jours ne sont pas comptabilisés.",
     aucun: "Aucun embarquement déclaré.",
+    embarquements: "Embarquements",
+    periode: "Période",
+    joursColonne: "Jours",
+    preuveSoumise: "Preuve soumise, en attente de vérification",
+    verifiePar: "Vérifié par la DGAM",
     statut: {
       DECLARED: "Déclaré",
       SUBMITTED: "En vérification",
@@ -178,12 +202,22 @@ export const fr = {
     } as Record<string, string>,
     joursMer: "jours de service en mer",
     sInscrire: "S'inscrire à la formation",
+    votreDossierPour: "Votre dossier pour",
+    partiellementConforme: "Partiellement conforme",
+    conforme: "Conforme",
+    minimumRequis: "Minimum requis",
+    joursManquants: "jours manquants",
+    valideJusquAu: "Valide jusqu'au",
+    expireDans: "Expire dans",
+    centresFormation: "Centres de formation agréés",
+    renouvelerMedical: "Renouveler mon certificat médical",
   },
 
   demandes: {
     titre: "Mes demandes",
     nouvelle: "Nouvelle demande",
     aucune: "Aucune demande en cours.",
+    actionAttendue: "En attente de vous",
     reference: "Référence",
     etape1: "Objet de la demande",
     etape2: "Pièces justificatives",
@@ -199,6 +233,14 @@ export const fr = {
     fraisDossier: "Frais de dossier",
     gratuit: "Aucun frais",
     soumettre: "Soumettre la demande",
+    etapeCourante: "Étape",
+    deposerFichier: "Ajouter un document",
+    formatsAcceptes: "JPG, PNG ou PDF, 2 Mo maximum par fichier",
+    compressionAuto:
+      "Les photos sont compressées automatiquement. Votre brouillon est conservé hors ligne si le réseau se coupe.",
+    objetSelectionne: "Objet de la demande",
+    aucunePiece: "Aucune pièce ajoutée pour l'instant.",
+    retirer: "Retirer",
     type: {
       FIRST_ISSUANCE: "Première délivrance",
       RENEWAL: "Renouvellement",
@@ -229,6 +271,14 @@ export const fr = {
       "Présentez la référence de votre demande à l'antenne DGAM la plus proche.",
     succes: "Paiement confirmé",
     succesDetail: "Votre demande entre en instruction.",
+    etapeSur: "Étape 3 sur 4, paiement des frais",
+    fraisPour: "Frais de dossier",
+    choisirMode: "Choisir le mode de paiement",
+    instantane: "Paiement instantané",
+    especesDetail: "Payez à l'antenne DGAM",
+    confirmationTelephone:
+      "Vous recevrez une demande de confirmation sur votre téléphone.",
+    numeroOperateur: "Numéro",
     operateur: {
       ORANGE_MONEY: "Orange Money",
       MTN_MOMO: "MTN MoMo",
@@ -285,6 +335,13 @@ export const fr = {
     emailRequis: "Renseignez une adresse email pour activer ce canal.",
     fonction: "Fonction",
     categorieNavire: "Catégorie de navire",
+    compteActif: "Compte actif",
+    compteEnAttente: "Dossier en attente d'activation",
+    informations: "Informations",
+    modifier: "Modifier",
+    qrProfessionnel: "Mon QR Code professionnel",
+    partagerQr: "Partager mon QR Code",
+    region: "Région",
   },
 
   agent: {
@@ -317,6 +374,18 @@ export const fr = {
     encaisser: "Encaisser au guichet",
     aucuneDemande: "Aucune demande dans cette file.",
     soumisePar: "Soumise par",
+    demandesRecentes: "Demandes récentes",
+    dossiersDansLaFile: "dossiers dans la file",
+    marinsInscrits: "marins inscrits au registre",
+    piecesAControler: "pièces en attente de contrôle",
+    actionsTracees: "actions tracées",
+    marin: "Marin",
+    nature: "Nature",
+    statut: "Statut",
+    depot: "Dépôt",
+    nouveauxCeMois: "nouveaux ce mois",
+    sousQuatreVingtDix: "sous 90 jours",
+    tauxAuthenticite: "authentiques",
   },
 
   arstm: {
@@ -326,6 +395,7 @@ export const fr = {
     sessionsProgrammees: "Sessions programmées",
     inscriptionsEnAttente: "Inscriptions en attente",
     elevesEnAttente: "Élèves en attente de validation DGAM",
+    eleve: "Élève",
     fileAttente: "File d'attente par module",
     ouvrirSession: "Ouvrir une session",
     module: "Module de formation",
@@ -360,6 +430,7 @@ export const fr = {
 
   referentiels: {
     titre: "Référentiels",
+    sousTitre: "Paramètres métier qui pilotent le moteur de conformité et les frais.",
     fonctions: "Fonctions maritimes",
     certificats: "Types de certificats",
     baremes: "Barèmes des frais",
@@ -375,6 +446,18 @@ export const fr = {
     action: "Action",
     cible: "Cible",
     date: "Date",
+    // Libellés lisibles des codes d'action enregistrés par le serveur
+    actions: {
+      DOCUMENT_VERIFIED: "Document vérifié",
+      DOCUMENT_REJECTED: "Document rejeté",
+      REQUEST_APPROVED: "Demande approuvée",
+      REQUEST_REJECTED: "Demande rejetée",
+      INFO_REQUESTED: "Pièces complémentaires demandées",
+      MARIN_ACTIVATED: "Dossier marin activé",
+      EMBARKATION_VERIFIED: "Embarquement vérifié",
+      PAYMENT_COLLECTED: "Paiement encaissé",
+      NOTIFICATION_SENT: "Notifications envoyées",
+    } as Record<string, string>,
   },
 } as const;
 
