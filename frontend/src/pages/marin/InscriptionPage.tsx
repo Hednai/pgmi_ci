@@ -13,6 +13,7 @@ import { useAuthStore } from "../../stores/authStore.js";
 import { Button } from "../../components/atoms/Button.js";
 import { InputField } from "../../components/atoms/Field.js";
 import { Alerte } from "../../components/atoms/Feedback.js";
+import { Icone } from "../../components/atoms/Icone.js";
 import type { Marin } from "../../types/api.js";
 
 interface EtatNavigation {
@@ -20,7 +21,7 @@ interface EtatNavigation {
   code?: string;
 }
 
-export const InscriptionPage = () => {
+export function InscriptionPage() {
   const emplacement = useLocation();
   const etatRecu = (emplacement.state ?? {}) as EtatNavigation;
   const naviguer = useNavigate();
@@ -65,10 +66,21 @@ export const InscriptionPage = () => {
 
   return (
     <div className="min-h-screen bg-fond">
-      <header className="bg-navy px-4 py-5 text-white">
-        <h1 className="mx-auto max-w-lg font-titre text-lg font-semibold">
-          {t.inscription.titre}
-        </h1>
+      {/* Même bandeau institutionnel que la connexion : le marin reste dans
+          le même parcours visuel entre les deux écrans. */}
+      <header className="bg-gradient-to-br from-navy to-navy-light px-5 pb-6 pt-6 text-white">
+        <div className="mx-auto flex max-w-lg items-center gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/12">
+            <Icone nom="verifications" taille={22} />
+          </span>
+
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-white/60">
+              {t.commun.republique}
+            </p>
+            <h1 className="font-titre text-lg font-bold">{t.inscription.titre}</h1>
+          </div>
+        </div>
       </header>
 
       <main className="mx-auto max-w-lg space-y-4 p-4 pb-10">
@@ -132,4 +144,4 @@ export const InscriptionPage = () => {
       </main>
     </div>
   );
-};
+}

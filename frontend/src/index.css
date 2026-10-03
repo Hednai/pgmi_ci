@@ -9,6 +9,14 @@
 
 @import "tailwindcss";
 
+/* Police officielle de la charte, auto-hébergée.
+   Servie depuis le même domaine que l'application : aucune requête vers un
+   tiers, aucun blocage de rendu par une police distante, et l'affichage
+   reste correct en 2G grâce au repli système pendant le chargement. */
+@import "@fontsource/space-grotesk/500.css";
+@import "@fontsource/space-grotesk/600.css";
+@import "@fontsource/space-grotesk/700.css";
+
 @theme {
   /* Bleu institutionnel : autorité, fond de la navigation */
   --color-navy: #003049;
@@ -42,7 +50,7 @@
      La police est chargée localement si disponible, sans requête réseau
      bloquante : le premier affichage ne dépend pas d'une police distante. */
   --font-titre: "Space Grotesk", system-ui, -apple-system, sans-serif;
-  --font-corps: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-corps: "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
 
   --radius-carte: 0.875rem;

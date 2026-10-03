@@ -1,0 +1,52 @@
+# ============================================
+# render.yaml
+# Description de l'infrastructure du backend PGMI sur Render.
+#
+# La base de données n'est pas déclarée ici : elle est hébergée sur Neon,
+# dont l'offre gratuite n'expire pas, contrairement à PostgreSQL sur Render
+# qui est supprimé au bout de trente jours. DATABASE_URL est donc saisie
+# manuellement dans le tableau de bord Render.
+# ============================================
+
+services:
+  - type: web
+    name: pgmi-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: backend
+    branch: main
+
+    # Le client Prisma est généré au build : ses binaires dépendent de la
+    # plateforme et ne peuvent pas être versionnés.
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npm run start
+
+    healthCheckPath: /health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      - key: PORT
+        value: 10000
+
+      # Chaîne de connexion Neon, saisie dans le tableau de bord.
+      # Elle doit contenir ?sslmode=require et pointer sur le pooler.
+      - key: DATABASE_URL
+        sync: false
+
+      # Origines autorisées par CORS, séparées par une virgule.
+      - key: FRONTEND_URL
+        sync: false
+
+      - key: PUBLIC_VERIFY_URL
+        sync: false
+
+      # Secrets générés par Render à la création, jamais versionnés.
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: QR_SIGNING_SECRET
+        generateValue: true

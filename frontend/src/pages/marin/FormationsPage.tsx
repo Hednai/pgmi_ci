@@ -9,14 +9,15 @@
 import { useEffect, useState } from "react";
 import { t, libelle } from "../../i18n/index.js";
 import { api, ErreurApi } from "../../lib/apiClient.js";
-import { Card, SectionTitre, EtatVide } from "../../components/atoms/Card.js";
+import { Card, EtatVide } from "../../components/atoms/Card.js";
+import { EnteteEcran } from "../../components/layouts/EnteteEcran.js";
 import { BadgeStatut } from "../../components/atoms/Badge.js";
 import { Button } from "../../components/atoms/Button.js";
 import { Alerte, ChargementPage } from "../../components/atoms/Feedback.js";
 import { dateCourte } from "../../lib/format.js";
 import type { InscriptionFormation, SessionFormation } from "../../types/api.js";
 
-export const FormationsPage = () => {
+export function FormationsPage() {
   const [inscriptions, setInscriptions] = useState<InscriptionFormation[] | null>(null);
   const [sessions, setSessions] = useState<SessionFormation[]>([]);
   const [erreur, setErreur] = useState("");
@@ -70,12 +71,12 @@ export const FormationsPage = () => {
   const encours = inscriptions.filter((inscription) => inscription.status !== "PROPOSED");
 
   return (
-    <div className="space-y-5">
-      <div>
-        <SectionTitre titre={t.formations.titre} />
-        <p className="-mt-2 text-sm text-ardoise">{t.formations.sousTitre}</p>
-      </div>
+    <div>
+      <EnteteEcran titre={t.formations.titre}>
+        <p className="text-xs text-white/70">{t.formations.sousTitre}</p>
+      </EnteteEcran>
 
+      <div className="space-y-5">
       {erreur && <Alerte ton="erreur">{erreur}</Alerte>}
 
       {propositions.length > 0 && (
@@ -193,5 +194,6 @@ export const FormationsPage = () => {
         )}
       </section>
     </div>
+    </div>
   );
-};
+}

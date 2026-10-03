@@ -8,16 +8,18 @@
 import { useEffect, useState } from "react";
 import { t } from "../../i18n/index.js";
 import { api, ErreurApi } from "../../lib/apiClient.js";
-import { Card, EtatVide, SectionTitre } from "../../components/atoms/Card.js";
+import { Card, EtatVide } from "../../components/atoms/Card.js";
 import { Button } from "../../components/atoms/Button.js";
 import { InputField } from "../../components/atoms/Field.js";
 import { Alerte, ChargementPage } from "../../components/atoms/Feedback.js";
-import { dateCourte } from "../../lib/format.js";
+import { Icone } from "../../components/atoms/Icone.js";
+import { EnteteAgent, BarreFiltres } from "../../components/layouts/EnteteAgent.js";
+import { dateCourte, initiales } from "../../lib/format.js";
 import type { DocumentMaritime, Embarquement, Pagine } from "../../types/api.js";
 
 type Onglet = "documents" | "embarquements";
 
-export const VerificationsAgentPage = () => {
+export function VerificationsAgentPage() {
   const [onglet, setOnglet] = useState<Onglet>("documents");
   const [documents, setDocuments] = useState<Pagine<DocumentMaritime> | null>(null);
   const [embarquements, setEmbarquements] = useState<Pagine<Embarquement> | null>(null);
@@ -55,25 +57,28 @@ export const VerificationsAgentPage = () => {
   if (!documents || !embarquements) return <ChargementPage />;
 
   return (
-    <div className="space-y-4">
-      <SectionTitre titre={t.navigation.verifications} />
+    <div>
+      <EnteteAgent
+        titre={t.navigation.verifications}
+        sousTitre={`${documents.total + embarquements.total} ${t.agent.piecesAControler}`}
+        icone="verifications"
+      />
 
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => setOnglet("documents")}
-          className={`rounded-lg px-3 py-1.5 text-xs font-medium ${onglet === "documents" ? "bg-navy text-white" : "bg-white text-ardoise"}`}
-        >
-          {t.navigation.documents} ({documents.total})
-        </button>
-        <button
-          type="button"
-          onClick={() => setOnglet("embarquements")}
-          className={`rounded-lg px-3 py-1.5 text-xs font-medium ${onglet === "embarquements" ? "bg-navy text-white" : "bg-white text-ardoise"}`}
-        >
-          {t.navigation.serviceMer} ({embarquements.total})
-        </button>
-      </div>
+      <div className="space-y-4">
+      <BarreFiltres
+        filtres={[
+          { valeur: "documents", libelle: t.navigation.documents, compte: documents.total },
+          {
+            valeur: "embarquements",
+            libelle: t.navigation.serviceMer,
+            compte: embarquements.total,
+          },
+        ]}
+        actif={onglet}
+        onChange={function (valeur) {
+          setOnglet(valeur as Onglet);
+        }}
+      />
 
       {erreur && <Alerte ton="erreur">{erreur}</Alerte>}
 
@@ -93,16 +98,23 @@ export const VerificationsAgentPage = () => {
 
             {documents.items.map((document) => (
               <Card key={document.id} className="space-y-3">
-                <div>
-                  <p className="text-sm font-semibold text-navy">
-                    {document.certificateType.label}
-                  </p>
-                  <p className="mt-0.5 text-xs text-ardoise">
-                    {document.marin?.fullName} · {document.marin?.matricule ?? ""}
-                  </p>
-                  <p className="matricule mt-0.5 text-xs text-ardoise">
-                    {document.number ?? "—"} · {dateCourte(document.expiryDate)}
-                  </p>
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-navy text-[10px] font-bold text-white">
+                    {initiales(document.marin ? document.marin.fullName : "")}
+                  </span>
+
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-navy">
+                      {document.certificateType.label}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-ardoise">
+                      {document.marin ? document.marin.fullName : ""}
+                      {document.marin?.matricule ? `, ${document.marin.matricule}` : ""}
+                    </p>
+                    <p className="matricule mt-0.5 text-xs text-ardoise">
+                      {document.number ?? "\u2014"}, {dateCourte(document.expiryDate)}
+                    </p>
+                  </div>
                 </div>
 
                 {document.fileUrl && (
@@ -159,15 +171,22 @@ export const VerificationsAgentPage = () => {
 
             {embarquements.items.map((embarquement) => (
               <Card key={embarquement.id} className="space-y-3">
-                <div>
-                  <p className="text-sm font-semibold text-navy">{embarquement.vesselName}</p>
-                  <p className="mt-0.5 text-xs text-ardoise">
-                    {embarquement.marin?.fullName} · {embarquement.marin?.matricule ?? ""}
-                  </p>
-                  <p className="mt-0.5 text-xs text-ardoise">
-                    {dateCourte(embarquement.startDate)} → {dateCourte(embarquement.endDate)} ·{" "}
-                    {embarquement.days} {t.commun.jours}
-                  </p>
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-sea text-white">
+                    <Icone nom="navire" taille={18} />
+                  </span>
+
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-navy">{embarquement.vesselName}</p>
+                    <p className="mt-0.5 truncate text-xs text-ardoise">
+                      {embarquement.marin ? embarquement.marin.fullName : ""}
+                      {embarquement.marin?.matricule ? `, ${embarquement.marin.matricule}` : ""}
+                    </p>
+                    <p className="mt-0.5 text-xs text-ardoise">
+                      {dateCourte(embarquement.startDate)} \u2192{" "}
+                      {dateCourte(embarquement.endDate)}, {embarquement.days} {t.commun.jours}
+                    </p>
+                  </div>
                 </div>
 
                 {embarquement.proofUrl && (
@@ -210,6 +229,7 @@ export const VerificationsAgentPage = () => {
             ))}
           </div>
         ))}
+      </div>
     </div>
   );
-};
+}

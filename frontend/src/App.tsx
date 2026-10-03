@@ -6,36 +6,84 @@
 // session est restaurée une fois au montage, avant tout rendu de route
 // protégée, pour ne pas renvoyer un utilisateur connecté vers la connexion.
 // ============================================
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./stores/authStore.js";
+import { ChargementPage } from "./components/atoms/Feedback.js";
 
 import { MarinLayout } from "./components/layouts/MarinLayout.js";
 import { AgentLayout } from "./components/layouts/AgentLayout.js";
 import { RouteMarin, RouteAgent } from "./components/layouts/ProtectedRoute.js";
 
-import { ConnexionPage } from "./pages/marin/ConnexionPage.js";
-import { InscriptionPage } from "./pages/marin/InscriptionPage.js";
-import { AccueilPage } from "./pages/marin/AccueilPage.js";
-import { DocumentsPage } from "./pages/marin/DocumentsPage.js";
-import { ServiceMerPage } from "./pages/marin/ServiceMerPage.js";
-import { ConformitePage } from "./pages/marin/ConformitePage.js";
-import { FormationsPage } from "./pages/marin/FormationsPage.js";
-import { ProfilPage } from "./pages/marin/ProfilPage.js";
-import { DemandesPage } from "./pages/marin/DemandesPage.js";
-import { NouvelleDemandePage } from "./pages/marin/NouvelleDemandePage.js";
-import { PaiementPage } from "./pages/marin/PaiementPage.js";
+// Chaque écran est chargé à la demande. Sur une connexion mobile, un marin
+// qui ouvre sa page d'accueil ne télécharge pas le poste agent, et
+// inversement : le premier affichage ne porte que le code réellement utilisé.
+const ConnexionPage = lazy(async function () {
+  return { default: (await import("./pages/marin/ConnexionPage.js")).ConnexionPage };
+});
+const InscriptionPage = lazy(async function () {
+  return { default: (await import("./pages/marin/InscriptionPage.js")).InscriptionPage };
+});
+const AccueilPage = lazy(async function () {
+  return { default: (await import("./pages/marin/AccueilPage.js")).AccueilPage };
+});
+const DocumentsPage = lazy(async function () {
+  return { default: (await import("./pages/marin/DocumentsPage.js")).DocumentsPage };
+});
+const ServiceMerPage = lazy(async function () {
+  return { default: (await import("./pages/marin/ServiceMerPage.js")).ServiceMerPage };
+});
+const ConformitePage = lazy(async function () {
+  return { default: (await import("./pages/marin/ConformitePage.js")).ConformitePage };
+});
+const FormationsPage = lazy(async function () {
+  return { default: (await import("./pages/marin/FormationsPage.js")).FormationsPage };
+});
+const ProfilPage = lazy(async function () {
+  return { default: (await import("./pages/marin/ProfilPage.js")).ProfilPage };
+});
+const DemandesPage = lazy(async function () {
+  return { default: (await import("./pages/marin/DemandesPage.js")).DemandesPage };
+});
+const NouvelleDemandePage = lazy(async function () {
+  return { default: (await import("./pages/marin/NouvelleDemandePage.js")).NouvelleDemandePage };
+});
+const PaiementPage = lazy(async function () {
+  return { default: (await import("./pages/marin/PaiementPage.js")).PaiementPage };
+});
 
-import { ConnexionAgentPage } from "./pages/agent/ConnexionAgentPage.js";
-import { TableauBordAgentPage } from "./pages/agent/TableauBordAgentPage.js";
-import { DemandesAgentPage } from "./pages/agent/DemandesAgentPage.js";
-import { MarinsAgentPage } from "./pages/agent/MarinsAgentPage.js";
-import { VerificationsAgentPage } from "./pages/agent/VerificationsAgentPage.js";
-import { ArstmPage } from "./pages/agent/ArstmPage.js";
-import { ReferentielsPage } from "./pages/agent/ReferentielsPage.js";
-import { JournalPage } from "./pages/agent/JournalPage.js";
+const ConnexionAgentPage = lazy(async function () {
+  return { default: (await import("./pages/agent/ConnexionAgentPage.js")).ConnexionAgentPage };
+});
+const TableauBordAgentPage = lazy(async function () {
+  return {
+    default: (await import("./pages/agent/TableauBordAgentPage.js")).TableauBordAgentPage,
+  };
+});
+const DemandesAgentPage = lazy(async function () {
+  return { default: (await import("./pages/agent/DemandesAgentPage.js")).DemandesAgentPage };
+});
+const MarinsAgentPage = lazy(async function () {
+  return { default: (await import("./pages/agent/MarinsAgentPage.js")).MarinsAgentPage };
+});
+const VerificationsAgentPage = lazy(async function () {
+  return {
+    default: (await import("./pages/agent/VerificationsAgentPage.js")).VerificationsAgentPage,
+  };
+});
+const ArstmPage = lazy(async function () {
+  return { default: (await import("./pages/agent/ArstmPage.js")).ArstmPage };
+});
+const ReferentielsPage = lazy(async function () {
+  return { default: (await import("./pages/agent/ReferentielsPage.js")).ReferentielsPage };
+});
+const JournalPage = lazy(async function () {
+  return { default: (await import("./pages/agent/JournalPage.js")).JournalPage };
+});
 
-import { VerificationPage } from "./pages/public/VerificationPage.js";
+const VerificationPage = lazy(async function () {
+  return { default: (await import("./pages/public/VerificationPage.js")).VerificationPage };
+});
 
 const ROLES_ARSTM = ["ARSTM_TRAINING", "ARSTM_REGISTRAR", "ARSTM_MANAGER"];
 const ROLES_DGAM = ["DGAM_AGENT", "DGAM_SUPERVISOR", "PLATFORM_ADMIN", "BUSINESS_ADMIN"];
@@ -49,7 +97,8 @@ const App = () => {
 
   return (
     <BrowserRouter>
-      <Routes>
+      <Suspense fallback={<ChargementPage />}>
+        <Routes>
         {/* Espace public */}
         <Route path="/verification" element={<VerificationPage />} />
 
@@ -138,8 +187,9 @@ const App = () => {
         </Route>
 
         <Route path="/" element={<Navigate to="/accueil" replace />} />
-        <Route path="*" element={<Navigate to="/accueil" replace />} />
-      </Routes>
+          <Route path="*" element={<Navigate to="/accueil" replace />} />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 };

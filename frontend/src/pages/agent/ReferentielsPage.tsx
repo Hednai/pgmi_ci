@@ -9,12 +9,13 @@
 import { useEffect } from "react";
 import { t } from "../../i18n/index.js";
 import { useReferentielStore } from "../../stores/referentielStore.js";
-import { Card, SectionTitre } from "../../components/atoms/Card.js";
+import { Card } from "../../components/atoms/Card.js";
 import { Badge } from "../../components/atoms/Badge.js";
 import { ChargementPage } from "../../components/atoms/Feedback.js";
+import { EnteteAgent } from "../../components/layouts/EnteteAgent.js";
 import { montant } from "../../lib/format.js";
 
-export const ReferentielsPage = () => {
+export function ReferentielsPage() {
   const { fonctions, certificats, baremes, charge, charger } = useReferentielStore();
 
   useEffect(() => {
@@ -24,8 +25,14 @@ export const ReferentielsPage = () => {
   if (!charge) return <ChargementPage />;
 
   return (
-    <div className="space-y-6">
-      <SectionTitre titre={t.referentiels.titre} />
+    <div>
+      <EnteteAgent
+        titre={t.referentiels.titre}
+        sousTitre={t.referentiels.sousTitre}
+        icone="referentiels"
+      />
+
+      <div className="space-y-6">
 
       <section>
         <h2 className="mb-2 text-sm font-semibold text-navy">{t.referentiels.certificats}</h2>
@@ -97,5 +104,6 @@ export const ReferentielsPage = () => {
         </Card>
       </section>
     </div>
+    </div>
   );
-};
+}

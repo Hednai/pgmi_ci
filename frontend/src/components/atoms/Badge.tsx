@@ -6,6 +6,7 @@
 // statut a donc la même couleur sur l'écran marin et sur le poste agent.
 // ============================================
 import type { ReactNode } from "react";
+import { t } from "../../i18n/index.js";
 
 export type TonBadge = "neutre" | "succes" | "alerte" | "erreur" | "info";
 
@@ -40,6 +41,7 @@ const TON_PAR_STATUT: Record<string, TonBadge> = {
 
   AWAITING_PAYMENT: "alerte",
   INFO_REQUESTED: "alerte",
+  EXPIRING_SOON: "alerte",
   PENDING: "alerte",
   PENDING_DGAM_VALIDATION: "alerte",
   WAITING_FOR_QUORUM: "alerte",
@@ -54,6 +56,8 @@ const TON_PAR_STATUT: Record<string, TonBadge> = {
   FAILED: "erreur",
 
   REPLACED: "neutre",
+  DIGITIZED: "neutre",
+  DIGITIZED_DAM: "info",
   CANCELLED: "neutre",
   DECLINED: "neutre",
   COMPLETED: "neutre",
@@ -69,6 +73,14 @@ export const Badge = ({ ton = "neutre", children }: { ton?: TonBadge; children: 
   </span>
 );
 
-export const BadgeStatut = ({ statut, libelle }: { statut: string; libelle: string }) => (
-  <Badge ton={tonDuStatut(statut)}>{libelle}</Badge>
+// Libellé lisible d'un statut. Les dictionnaires métier sont interrogés dans
+// l'ordre, et le code brut sert d'ultime repli pour ne jamais afficher vide.
+const libelleDuStatut = (statut: string): string =>
+  t.documents.statut[statut] ??
+  t.demandes.statut[statut] ??
+  t.serviceMer.statut[statut] ??
+  statut;
+
+export const BadgeStatut = ({ statut, libelle }: { statut: string; libelle?: string }) => (
+  <Badge ton={tonDuStatut(statut)}>{libelle ?? libelleDuStatut(statut)}</Badge>
 );

@@ -10,10 +10,14 @@ import { NavLink, Outlet } from "react-router-dom";
 import { t } from "../../i18n/index.js";
 import { useAuthStore } from "../../stores/authStore.js";
 import { api } from "../../lib/apiClient.js";
+import { Icone } from "../atoms/Icone.js";
+import type { NomIcone } from "../atoms/Icone.js";
+import { initiales } from "../../lib/format.js";
 
 interface EntreeMenu {
   chemin: string;
   libelle: string;
+  icone: NomIcone;
   roles?: string[];
 }
 
@@ -21,19 +25,26 @@ const ROLES_DGAM = ["DGAM_AGENT", "DGAM_SUPERVISOR", "PLATFORM_ADMIN", "BUSINESS
 const ROLES_ARSTM = ["ARSTM_TRAINING", "ARSTM_REGISTRAR", "ARSTM_MANAGER"];
 
 const MENU: EntreeMenu[] = [
-  { chemin: "/agent", libelle: t.navigation.tableauBord },
-  { chemin: "/agent/demandes", libelle: t.navigation.demandes, roles: ROLES_DGAM },
-  { chemin: "/agent/marins", libelle: t.navigation.marins, roles: ROLES_DGAM },
-  { chemin: "/agent/verifications", libelle: t.navigation.verifications, roles: ROLES_DGAM },
-  { chemin: "/agent/arstm", libelle: t.navigation.arstm, roles: ROLES_ARSTM },
+  { chemin: "/agent", libelle: t.navigation.tableauBord, icone: "tableauBord" },
+  { chemin: "/agent/demandes", libelle: t.navigation.demandes, icone: "demandes", roles: ROLES_DGAM },
+  { chemin: "/agent/marins", libelle: t.navigation.marins, icone: "marins", roles: ROLES_DGAM },
+  {
+    chemin: "/agent/verifications",
+    libelle: t.navigation.verifications,
+    icone: "verifications",
+    roles: ROLES_DGAM,
+  },
+  { chemin: "/agent/arstm", libelle: t.navigation.arstm, icone: "formations", roles: ROLES_ARSTM },
   {
     chemin: "/agent/referentiels",
     libelle: t.navigation.referentiels,
+    icone: "referentiels",
     roles: ["BUSINESS_ADMIN", "PLATFORM_ADMIN"],
   },
   {
     chemin: "/agent/journal",
     libelle: t.navigation.journal,
+    icone: "journal",
     roles: ["DGAM_SUPERVISOR", "PLATFORM_ADMIN"],
   },
 ];
@@ -59,14 +70,14 @@ export const AgentLayout = () => {
   return (
     <div className="flex min-h-screen bg-fond">
       <aside className="fixed inset-y-0 left-0 hidden w-sidebar flex-col bg-navy text-white lg:flex">
-        <div className="px-5 py-6">
-          <p className="text-[11px] uppercase tracking-wide text-white/50">
-            {t.commun.republique}
-          </p>
-          <p className="font-titre text-lg font-bold">{t.commun.application}</p>
-          <p className="mt-1 text-[11px] leading-tight text-white/60">
-            {agent?.authority?.name || t.commun.autorite}
-          </p>
+        <div className="flex items-center gap-2.5 border-b border-white/10 px-5 py-6">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/12">
+            <Icone nom="verifications" taille={20} />
+          </span>
+          <div className="min-w-0">
+            <p className="font-titre text-base font-bold leading-tight">{t.commun.application}</p>
+            <p className="truncate text-[10px] text-white/40">{t.agent.titre}</p>
+          </div>
         </div>
 
         <nav className="flex-1 space-y-1 px-3">
@@ -76,24 +87,45 @@ export const AgentLayout = () => {
               to={entree.chemin}
               end={entree.chemin === "/agent"}
               className={({ isActive }) =>
-                `block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${isActive ? "bg-orange-ci text-white" : "text-white/75 hover:bg-white/10"}`
+                `flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${isActive ? "bg-white/12 text-white" : "text-white/70 hover:bg-white/[0.06]"}`
               }
             >
-              {entree.libelle}
+              {({ isActive }) => (
+                <>
+                  <Icone
+                    nom={entree.icone}
+                    taille={18}
+                    className={isActive ? "text-orange-ci" : ""}
+                  />
+                  {entree.libelle}
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
 
-        <div className="border-t border-white/10 px-5 py-4">
-          <p className="text-sm font-semibold">
-            {agent ? `${agent.firstName} ${agent.lastName}` : ""}
-          </p>
-          <p className="text-[11px] text-white/60">{agent?.roleLabel}</p>
+        <div className="border-t border-white/10 px-4 py-4">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-ci text-[11px] font-bold">
+              {initiales(agent ? `${agent.firstName} ${agent.lastName}` : "")}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold leading-tight">
+                {agent ? `${agent.firstName} ${agent.lastName}` : ""}
+              </p>
+              <p className="truncate text-[10px] text-white/50">
+                {agent?.roleLabel}
+                {agent?.authority?.name ? `, ${agent.authority.name}` : ""}
+              </p>
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={gererDeconnexion}
-            className="mt-2 text-xs font-medium text-orange-ci hover:underline"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-white/15 py-2 text-xs font-medium text-white/80 transition-colors hover:bg-white/[0.06]"
           >
+            <Icone nom="deconnexion" taille={14} />
             {t.commun.deconnexion}
           </button>
         </div>
