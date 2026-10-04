@@ -19,7 +19,7 @@ services:
 
     # Le client Prisma est généré au build : ses binaires dépendent de la
     # plateforme et ne peuvent pas être versionnés.
-    buildCommand: npm ci && npx prisma generate && npm run build
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build
     startCommand: npm run start
 
     healthCheckPath: /health
