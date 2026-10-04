@@ -41,7 +41,7 @@ const INCLUDE_DEMANDE = {
   attachments: true,
   payments: true,
   marin: {
-    select: { id: true, firstName: true, lastName: true, matricule: true, phone: true },
+    select: { id: true, firstName: true, lastName: true, matricule: true, phone: true, region: true, status: true, registrationSource: true, isCadet: true },
   },
   assignedTo: { select: { id: true, firstName: true, lastName: true } },
   decidedBy: { select: { id: true, firstName: true, lastName: true } },
@@ -490,7 +490,7 @@ export const listerDemandes = async (filtres: Record<string, unknown>, acteur: A
       : {}),
   };
 
-  const [items, total] = await Promise.all([
+  const [itemsBruts, total] = await Promise.all([
     prisma.renewalRequest.findMany({
       where,
       include: INCLUDE_DEMANDE,
@@ -500,6 +500,14 @@ export const listerDemandes = async (filtres: Record<string, unknown>, acteur: A
     }),
     prisma.renewalRequest.count({ where }),
   ]);
+
+  // Ajout du champ calculé fullName attendu par le frontend
+  const items = itemsBruts.map((d) => ({
+    ...d,
+    marin: d.marin
+      ? { ...d.marin, fullName: `${d.marin.firstName} ${d.marin.lastName}` }
+      : null,
+  }));
 
   return construireReponse(items, total, pagination);
 };
