@@ -58,10 +58,15 @@ if (!resultat.success) {
 const donnees = resultat.data;
 
 // Garde-fou de production : aucune exposition du code OTP hors développement
+// TODO DEMO : réactiver le garde-fou ci-dessous avant la mise en service réelle
+// export const env = {
+//   ...donnees,
+//   EXPOSE_OTP_IN_RESPONSE:
+//     donnees.NODE_ENV === "production" ? false : donnees.EXPOSE_OTP_IN_RESPONSE,
+// };
 export const env = {
   ...donnees,
-  EXPOSE_OTP_IN_RESPONSE:
-    donnees.NODE_ENV === "production" ? false : donnees.EXPOSE_OTP_IN_RESPONSE,
+  EXPOSE_OTP_IN_RESPONSE: donnees.EXPOSE_OTP_IN_RESPONSE,
 };
 
 // Liste des origines autorisées, dérivée de FRONTEND_URL
