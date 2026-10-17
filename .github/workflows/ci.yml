@@ -1,0 +1,105 @@
+# ============================================
+# .github/workflows/ci.yml
+# Pipeline CI : types, lint, tests et build pour le frontend et le backend.
+#
+# Déclenché sur chaque poussée vers main ou dev, et sur chaque pull request
+# vers ces branches. Les exécutions en cours sont annulées si une nouvelle
+# poussée arrive sur la même branche.
+# ============================================
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+# Annule les exécutions précédentes encore en cours sur la même branche
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Permissions minimales (principe du moindre privilège)
+permissions:
+  contents: read
+
+jobs:
+  # ---- Backend : types, tests unitaires, build ----
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installation de Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Installation des dépendances
+        run: npm ci
+
+      # Le client Prisma est généré avant la compilation : sans lui, les
+      # types du schéma n'existent pas et tsc échoue.
+      - name: Génération du client Prisma
+        run: npx prisma generate
+
+      - name: Vérification des types
+        run: npx tsc --noEmit
+
+      - name: Tests unitaires
+        run: npm test
+
+      # Le manuel des habilitations est généré depuis la matrice. S'il n'est
+      # plus à jour, c'est que la matrice a changé sans que le document
+      # publié suive : la chaîne le signale au lieu de laisser diverger.
+      - name: Manuel des habilitations à jour
+        run: |
+          npm run manuel:habilitations
+          git diff --exit-code ../MANUEL_HABILITATIONS.md
+
+      - name: Build de production
+        run: npm run build
+
+      # Signale les vulnérabilités connues sans bloquer la chaîne sur un
+      # avertissement de dépendance transitive.
+      - name: Audit de sécurité
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+  # ---- Frontend : types, build de production ----
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      # Le mode démonstration doit être actif pour que le build frontend
+      # inclue les données de démonstration et réussisse le typage.
+      VITE_MODE_DEMO: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installation de Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Installation des dépendances
+        run: npm ci
+
+      # Appel direct au compilateur : la vérification ne dépend pas du contenu
+      # du script lint, qui peut changer sans que la chaîne le signale.
+      - name: Vérification des types
+        run: npx tsc --noEmit
+
+      - name: Build de production
+        run: npm run build

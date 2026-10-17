@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vérification d'un document, DGAM Côte d'Ivoire</title>
+<meta name="description" content="Vérification publique de l'authenticité d'un document maritime délivré par la Direction Générale des Affaires Maritimes de Côte d'Ivoire.">
+<meta name="robots" content="noindex">
+<!--
+  Page publique de vérification d'un document, pgmi.ci/v/CODE
+
+  Contrainte du plan de fondation : chargement en moins d'une seconde sur
+  une connexion 2G. Aucun framework, aucune police distante, aucune image.
+  Tout est inline et la page ne fait qu'un seul appel réseau, vers l'API.
+-->
+<style>
+  :root {
+    --navy: #003049;
+    --navy-clair: #005f73;
+    --teal: #065a60;
+    --orange: #f77f00;
+    --erreur: #dc2626;
+    --succes-fond: #e1f5e8;
+    --fond: #f7f8fa;
+    --bordure: #e5e8ee;
+    --ardoise: #7a8599;
+    --texte: #0d1b2a;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  *, *::before, *::after { box-sizing: inherit; }
+
+  body {
+    margin: 0;
+    background: var(--fond);
+    color: var(--texte);
+    font-family: "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  /* Bandeau institutionnel, identique quel que soit le résultat */
+  .bandeau {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    background: var(--navy);
+    color: #fff;
+  }
+
+  .bandeau__ecusson {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .bandeau__autorite {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+
+  .bandeau__pays {
+    margin-top: 1px;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .contenu {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 24px 20px 32px;
+  }
+
+  /* Verdict de la vérification. La couleur porte le résultat, le texte aussi :
+     l'information ne repose jamais sur la seule teinte. */
+  .verdict {
+    position: relative;
+    overflow: hidden;
+    padding: 24px;
+    border-radius: 16px;
+    color: #fff;
+    text-align: center;
+  }
+
+  .verdict--valide { background: var(--teal); }
+  .verdict--invalide { background: var(--erreur); }
+  .verdict--remplace { background: var(--orange); }
+  .verdict--inconnu { background: var(--navy-clair); }
+
+  .verdict__halo {
+    position: absolute;
+    top: -20px;
+    right: -20px;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .verdict__pastille {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    margin: 0 auto;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  .verdict__titre {
+    margin-top: 14px;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+  }
+
+  .verdict__detail {
+    margin-top: 6px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .fiche {
+    margin-top: 20px;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid var(--bordure);
+    border-radius: 14px;
+  }
+
+  .fiche__identite {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+  }
+
+  /* Emplacement de la photo : l'inspecteur compare le visage au porteur */
+  .fiche__photo {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 72px;
+    height: 90px;
+    border: 1px solid #d0d5dd;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #e5e8ee, #d0d5dd);
+    font-size: 30px;
+    color: #9aa4b2;
+  }
+
+  .fiche__photo--attenuee { opacity: 0.45; }
+
+  .fiche__nom {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--navy);
+  }
+
+  .fiche__matricule {
+    margin-top: 4px;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 12px;
+    color: var(--ardoise);
+  }
+
+  .etiquette {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .etiquette--valide { background: var(--succes-fond); color: var(--teal); }
+  .etiquette--invalide { background: #fee2e2; color: var(--erreur); }
+  .etiquette--remplace { background: #fff4e6; color: var(--orange); }
+
+  .etiquette__point {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .ligne {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 20px;
+    border-top: 1px solid #f0f2f5;
+  }
+
+  .ligne__cle {
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--ardoise);
+  }
+
+  .ligne__valeur {
+    font-size: 13px;
+    font-weight: 600;
+    text-align: right;
+  }
+
+  .ligne__valeur--code {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-weight: 500;
+  }
+
+  .ligne__valeur--alerte { color: var(--erreur); }
+  .ligne__valeur--barree { text-decoration: line-through; color: var(--ardoise); }
+
+  .encadre {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .encadre--invalide { border: 1px solid #fca5a5; background: #fef2f2; color: #991b1b; }
+  .encadre--remplace { border: 1px solid #fcd9a5; background: #fffbf5; color: #92400e; }
+  .encadre--neutre { background: #eef1f5; color: var(--ardoise); }
+
+  .horodatage {
+    margin-top: 16px;
+    font-size: 11px;
+    color: var(--ardoise);
+    text-align: center;
+  }
+
+  .recherche {
+    margin-top: 20px;
+    padding: 18px;
+    background: #fff;
+    border: 1px solid var(--bordure);
+    border-radius: 14px;
+  }
+
+  .recherche__label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+  }
+
+  .recherche__champ {
+    width: 100%;
+    margin-top: 8px;
+    padding: 12px 14px;
+    border: 1px solid var(--bordure);
+    border-radius: 10px;
+    background: var(--fond);
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 16px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--texte);
+  }
+
+  .recherche__bouton {
+    width: 100%;
+    min-height: 44px;
+    margin-top: 10px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--orange);
+    color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .chargement {
+    padding: 48px 0;
+    color: var(--ardoise);
+    text-align: center;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --fond: #0f1720;
+      --texte: #e8edf2;
+      --bordure: #24303d;
+      --ardoise: #94a3b8;
+    }
+    :root:not([data-theme="light"]) .fiche,
+    :root:not([data-theme="light"]) .recherche { background: #16202b; }
+    :root:not([data-theme="light"]) .ligne { border-color: #24303d; }
+    :root:not([data-theme="light"]) .fiche__nom { color: #e8edf2; }
+  }
+</style>
+</head>
+<body>
+
+<header class="bandeau">
+  <span class="bandeau__ecusson" aria-hidden="true">
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+      <path d="M10 2L2 6v3c0 6.3 3.4 12.1 8 13.5 4.6-1.4 8-7.2 8-13.5V6L10 2z" stroke="#fff" stroke-width="1.5"/>
+      <path d="M7 10l2.5 2.5L14 7.5" stroke="#F77F00" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  </span>
+  <div>
+    <div class="bandeau__autorite">DIRECTION GÉNÉRALE DES AFFAIRES MARITIMES</div>
+    <div class="bandeau__pays">République de Côte d'Ivoire</div>
+  </div>
+</header>
+
+<main class="contenu" id="contenu">
+  <p class="chargement">Vérification en cours…</p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  // Base de l'API. En production, la page est servie par le même domaine
+  // que l'API : le chemin relatif évite une requête préalable de CORS.
+  var BASE_API = "";
+
+  var contenu = document.getElementById("contenu");
+
+  // Apparence associée à chaque résultat renvoyé par le serveur.
+  var VERDICTS = {
+    VALIDE: {
+      classe: "valide",
+      symbole: "\u2713",
+      titre: "DOCUMENT AUTHENTIQUE",
+      etiquette: "VALIDE"
+    },
+    EXPIRE: {
+      classe: "invalide",
+      symbole: "\u2715",
+      titre: "DOCUMENT NON VALIDE",
+      etiquette: "EXPIRÉ"
+    },
+    SUSPENDU: {
+      classe: "invalide",
+      symbole: "\u2715",
+      titre: "DOCUMENT SUSPENDU",
+      etiquette: "SUSPENDU"
+    },
+    REVOQUE: {
+      classe: "invalide",
+      symbole: "\u2715",
+      titre: "DOCUMENT RÉVOQUÉ",
+      etiquette: "RÉVOQUÉ"
+    },
+    REMPLACE: {
+      classe: "remplace",
+      symbole: "\u21BB",
+      titre: "DOCUMENT REMPLACÉ",
+      etiquette: "REMPLACÉ"
+    },
+    INTROUVABLE: {
+      classe: "inconnu",
+      symbole: "?",
+      titre: "CODE INCONNU",
+      etiquette: "INTROUVABLE"
+    }
+  };
+
+  // Échappement systématique : les valeurs viennent du réseau et ne sont
+  // jamais insérées telles quelles dans le document.
+  function echapper(valeur) {
+    if (valeur === null || valeur === undefined) {
+      return "\u2014";
+    }
+    return String(valeur)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  // Date au format jour/mois/année, sans dépendance de localisation.
+  function formaterDate(valeur) {
+    if (!valeur) {
+      return "\u2014";
+    }
+    var date = new Date(valeur);
+    if (isNaN(date.getTime())) {
+      return "\u2014";
+    }
+    var jour = ("0" + date.getUTCDate()).slice(-2);
+    var mois = ("0" + (date.getUTCMonth() + 1)).slice(-2);
+    return jour + "/" + mois + "/" + date.getUTCFullYear();
+  }
+
+  function ligne(cle, valeur, modificateur) {
+    var classe = "ligne__valeur" + (modificateur ? " ligne__valeur--" + modificateur : "");
+    return (
+      '<div class="ligne"><span class="ligne__cle">' +
+      echapper(cle) +
+      '</span><span class="' +
+      classe +
+      '">' +
+      echapper(valeur) +
+      "</span></div>"
+    );
+  }
+
+  // Formulaire proposé quand aucun code n'est présent dans l'adresse.
+  function afficherRecherche(message) {
+    contenu.innerHTML =
+      (message ? '<div class="encadre encadre--neutre">' + echapper(message) + "</div>" : "") +
+      '<form class="recherche" id="formulaire-code">' +
+      '<label class="recherche__label" for="champ-code">Code de vérification du document</label>' +
+      '<input class="recherche__champ" id="champ-code" name="code" inputmode="text" autocomplete="off" placeholder="8F72K9X4P" maxlength="24" required>' +
+      '<button class="recherche__bouton" type="submit">Vérifier ce document</button>' +
+      "</form>";
+
+    document.getElementById("formulaire-code").addEventListener("submit", function (evenement) {
+      evenement.preventDefault();
+      var saisie = document.getElementById("champ-code").value.trim().toUpperCase();
+      if (saisie) {
+        window.location.href = "/v/" + encodeURIComponent(saisie);
+      }
+    });
+  }
+
+  function afficherResultat(resultat) {
+    var verdict = VERDICTS[resultat.statut] || VERDICTS.INTROUVABLE;
+    var document_ = resultat.document;
+    var attenuee = verdict.classe !== "valide";
+
+    var html =
+      '<section class="verdict verdict--' + verdict.classe + '">' +
+      '<span class="verdict__halo" aria-hidden="true"></span>' +
+      '<span class="verdict__pastille" aria-hidden="true">' + verdict.symbole + "</span>" +
+      '<h1 class="verdict__titre">' + echapper(verdict.titre) + "</h1>" +
+      '<p class="verdict__detail">' + echapper(resultat.message || "") + "</p>" +
+      "</section>";
+
+    if (document_) {
+      html +=
+        '<section class="fiche">' +
+        '<div class="fiche__identite">' +
+        '<span class="fiche__photo' + (attenuee ? " fiche__photo--attenuee" : "") + '" aria-hidden="true">\u25CF</span>' +
+        "<div>" +
+        '<p class="fiche__nom">' + echapper(document_.titulaire) + "</p>" +
+        '<p class="fiche__matricule">' + echapper(document_.matricule) + "</p>" +
+        '<span class="etiquette etiquette--' + verdict.classe + '">' +
+        '<span class="etiquette__point" aria-hidden="true"></span>' +
+        echapper(verdict.etiquette) +
+        "</span>" +
+        "</div>" +
+        "</div>" +
+        ligne("Document", document_.certificat) +
+        ligne("Fonction", document_.fonction) +
+        ligne("Numéro", document_.numero, resultat.statut === "REMPLACE" ? "barree" : "code") +
+        ligne("Délivré le", formaterDate(document_.delivreLe)) +
+        ligne(
+          "Expire le",
+          formaterDate(document_.expireLe),
+          resultat.statut === "EXPIRE" ? "alerte" : null
+        ) +
+        ligne("Autorité", document_.autorite) +
+        "</section>";
+    }
+
+    if (resultat.statut === "EXPIRE" || resultat.statut === "SUSPENDU" || resultat.statut === "REVOQUE") {
+      html +=
+        '<div class="encadre encadre--invalide">Ce document n\'est plus valide. Le porteur doit contacter la DGAM pour régulariser sa situation.</div>';
+    }
+
+    if (resultat.statut === "REMPLACE") {
+      html +=
+        '<div class="encadre encadre--remplace">Une version plus récente de ce document existe. Demandez au porteur de vous présenter le document actuel.</div>';
+    }
+
+    if (document_) {
+      html +=
+        '<div class="encadre encadre--neutre">Le nom est partiellement masqué pour protéger les données personnelles du titulaire. La photo permet la comparaison visuelle avec le porteur.</div>';
+    }
+
+    html +=
+      '<p class="horodatage">Vérification effectuée le ' +
+      formaterDate(new Date().toISOString()) +
+      "</p>";
+
+    contenu.innerHTML = html;
+  }
+
+  // Le code est lu dans le chemin /v/CODE, avec repli sur le paramètre ?code=
+  function lireCode() {
+    var correspondance = window.location.pathname.match(/\/v\/([^/?#]+)/);
+    if (correspondance) {
+      return decodeURIComponent(correspondance[1]);
+    }
+    var parametres = new URLSearchParams(window.location.search);
+    return parametres.get("code") || "";
+  }
+
+  var code = lireCode().trim().toUpperCase();
+
+  if (!code) {
+    afficherRecherche("Scannez le QR code d'un document ou saisissez son code de vérification.");
+    return;
+  }
+
+  // Unique appel réseau de la page.
+  var requete = new XMLHttpRequest();
+  requete.open("GET", BASE_API + "/api/verification/" + encodeURIComponent(code), true);
+  requete.setRequestHeader("Accept", "application/json");
+
+  requete.onload = function () {
+    var corps = null;
+    try {
+      corps = JSON.parse(requete.responseText);
+    } catch (erreur) {
+      corps = null;
+    }
+
+    if (!corps || !corps.data) {
+      afficherRecherche("Aucun document ne correspond à ce code de vérification.");
+      return;
+    }
+
+    afficherResultat(corps.data);
+  };
+
+  requete.onerror = function () {
+    afficherRecherche("Connexion impossible. Vérifiez votre réseau et réessayez.");
+  };
+
+  requete.send();
+})();
+</script>
+
+</body>
+</html>
