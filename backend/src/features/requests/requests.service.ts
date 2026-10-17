@@ -20,6 +20,7 @@ import type { RequestStatus, SubmittedByRole } from "../../domain/status.js";
 import { ARSTM_ROLES, DGAM_DECISION_ROLES } from "../../domain/roles.js";
 import type { AgentRole } from "../../domain/roles.js";
 import { genererReferenceDemande } from "../../utils/reference.js";
+import { instructionAutorisee } from "../../domain/rules.js";
 import { logAction, AUDIT_ACTION } from "../../utils/auditLog.js";
 import { lirePagination, construireReponse } from "../../utils/pagination.js";
 import {
@@ -294,9 +295,24 @@ export const assignerDemande = async (
 
   const demande = await prisma.renewalRequest.findUnique({
     where: { id: requestId },
-    select: { status: true, submittedById: true },
+    select: { status: true, submittedById: true, feeAmount: true, payments: true },
   });
   if (!demande) throw new NotFoundError("Demande introuvable.");
+
+  // R8 : l'en-tête de ce fichier annonce « pas d'instruction avant
+  // confirmation du paiement », mais seule l'approbation le vérifiait. La
+  // matrice autorise AWAITING_PAYMENT vers ASSIGNED, transition que la
+  // confirmation de paiement utilise légitimement : le contrôle se fait donc
+  // ici, à l'entrée en instruction.
+  const paiementConfirme = demande.payments.some(
+    (paiement) => paiement.status === PAYMENT_STATUS.PAID,
+  );
+  if (!instructionAutorisee({ feeAmount: demande.feeAmount, paiementConfirme })) {
+    throw new BusinessRuleError(
+      "Les frais de dossier doivent être réglés avant l'instruction.",
+      "R8",
+    );
+  }
 
   // Anticipation de R6 : assigner l'instruction à celui qui a soumis la
   // demande serait refusé plus tard à l'approbation, autant le bloquer ici.

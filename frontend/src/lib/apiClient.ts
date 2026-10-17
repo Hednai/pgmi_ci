@@ -17,6 +17,11 @@ const BASE = import.meta.env.VITE_API_URL ?? "";
 // déployé. Toute autre valeur que "true" laisse le comportement réseau normal.
 const MODE_DEMO = import.meta.env.VITE_MODE_DEMO === "true";
 
+// Lecture seule du drapeau. Seuls les écrans de connexion s'en servent, pour
+// afficher le bandeau de démonstration : aucun écran métier ne change de
+// comportement selon ce drapeau.
+export const estModeDemo = (): boolean => MODE_DEMO;
+
 // Le serveur de démonstration et son jeu de données sont chargés à la
 // demande, et une seule fois. Hors mode démonstration, ce code ne part
 // jamais sur le réseau : il forme un fragment séparé que le navigateur

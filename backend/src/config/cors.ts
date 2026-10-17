@@ -12,7 +12,10 @@ export const corsMiddleware = cors({
     if (!origin || ORIGINES_AUTORISEES.includes(origin)) {
       return callback(null, true);
     }
-    return callback(new Error("Origine non autorisée par la politique CORS."));
+    // Refus sans lever : le navigateur bloque déjà la réponse. Lever une
+    // erreur ici produirait un 500 et une alerte serveur pour un simple
+    // appel depuis une origine non déclarée.
+    return callback(null, false);
   },
   credentials: true,
   methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],

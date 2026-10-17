@@ -38,14 +38,34 @@ const envSchema = z.object({
   CINETPAY_SITE_ID: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
 
-  // Renvoie le code OTP dans la réponse HTTP. Refusé en production par le
-  // raffinement ci-dessous : une erreur de configuration ne doit pas
-  // exposer les codes de connexion.
+  // Renvoie le code OTP dans la réponse HTTP. N'est honoré qu'en dehors de
+  // la production, ou sur une instance de production explicitement marquée
+  // comme instance de démonstration.
   EXPOSE_OTP_IN_RESPONSE: z
     .string()
     .optional()
     .transform((valeur) => valeur === "true"),
-});
+
+  // Instance de démonstration : la plateforme affiche un bandeau et autorise
+  // les facilités de recette. Jamais actif sur l'instance réelle de la DGAM.
+  DEMO_MODE: z
+    .string()
+    .optional()
+    .transform((valeur) => valeur === "true"),
+})
+  // Verrou de configuration : une démonstration ne doit jamais tourner devant
+  // une passerelle SMS réelle, sinon de vrais codes partiraient vers de vrais
+  // numéros pendant une présentation.
+  .superRefine((valeurs, contexte) => {
+    if (valeurs.DEMO_MODE && valeurs.SMS_PROVIDER !== "console") {
+      contexte.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["DEMO_MODE"],
+        message:
+          "DEMO_MODE=true est incompatible avec un fournisseur SMS réel. Utilisez SMS_PROVIDER=console.",
+      });
+    }
+  });
 
 const resultat = envSchema.safeParse(process.env);
 
@@ -57,12 +77,21 @@ if (!resultat.success) {
 
 const donnees = resultat.data;
 
-// Garde-fou de production : aucune exposition du code OTP hors développement
+// Garde-fou de production. Le code OTP n'accompagne la réponse que si le
+// drapeau est explicitement actif ET que l'instance n'est pas une production
+// réelle. Une instance de production marquée DEMO_MODE reste autorisée : c'est
+// le déploiement de recette, annoncé par un bandeau à l'écran.
+const otpExposable =
+  donnees.EXPOSE_OTP_IN_RESPONSE &&
+  (donnees.NODE_ENV !== "production" || donnees.DEMO_MODE);
+
 export const env = {
   ...donnees,
-  EXPOSE_OTP_IN_RESPONSE:
-    donnees.NODE_ENV === "production" ? false : donnees.EXPOSE_OTP_IN_RESPONSE,
+  EXPOSE_OTP_IN_RESPONSE: otpExposable,
 };
+
+// Instance de démonstration, lue par les services qui adaptent leur réponse
+export const estModeDemonstration = env.DEMO_MODE;
 
 // Liste des origines autorisées, dérivée de FRONTEND_URL
 export const ORIGINES_AUTORISEES = env.FRONTEND_URL.split(",")

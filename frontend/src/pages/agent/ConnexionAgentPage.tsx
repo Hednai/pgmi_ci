@@ -11,6 +11,8 @@ import { Button } from "../../components/atoms/Button.js";
 import { InputField } from "../../components/atoms/Field.js";
 import { Alerte } from "../../components/atoms/Feedback.js";
 import { Icone } from "../../components/atoms/Icone.js";
+import { BandeauDemo } from "../../components/atoms/BandeauDemo.js";
+import { useIdentifiantsDemo } from "../../hooks/useIdentifiantsDemo.js";
 import type { Agent } from "../../types/api.js";
 
 export function ConnexionAgentPage() {
@@ -18,6 +20,9 @@ export function ConnexionAgentPage() {
   const [motDePasse, setMotDePasse] = useState("");
   const [erreur, setErreur] = useState("");
   const [chargement, setChargement] = useState(false);
+
+  // Identifiants de recette, nuls hors instance de démonstration
+  const identifiantsDemo = useIdentifiantsDemo();
 
   const connecterAgent = useAuthStore((etat) => etat.connecterAgent);
   const naviguer = useNavigate();
@@ -78,6 +83,18 @@ export function ConnexionAgentPage() {
             }}
             obligatoire
           />
+
+          {identifiantsDemo && (
+            <BandeauDemo
+              lignes={identifiantsDemo.comptesAgent.flatMap(function (compte) {
+                return [
+                  { libelle: t.demonstration.compteAgent, valeur: compte.email },
+                  { libelle: t.demonstration.motDePasse, valeur: compte.motDePasse },
+                ];
+              })}
+              precision={t.demonstration.precisionAgent}
+            />
+          )}
 
           {erreur && <Alerte ton="erreur">{erreur}</Alerte>}
 

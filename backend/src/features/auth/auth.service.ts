@@ -75,17 +75,22 @@ export const emettreOtp = async (telephone: string) => {
     metadata: { compteExistant: Boolean(marinExistant) },
   });
 
+  // L'existence du dossier reste côté serveur, dans le journal d'audit. La
+  // réponse est identique pour un numéro connu et un numéro inconnu : sans
+  // cela, l'API devient l'annuaire des marins enregistrés, ce que le
+  // commentaire d'en-tête de cette fonction cherche justement à éviter.
   return {
     expiresAt: expiration,
-    compteExistant: Boolean(marinExistant),
-    // Facilite les essais en local, désactivé d'office en production
+    // Le code n'accompagne la réponse que sur une instance de démonstration.
     ...(env.EXPOSE_OTP_IN_RESPONSE ? { codeDeveloppement: code } : {}),
   };
 };
 
-// Contrôler un code OTP et le consommer.
-// Le code est invalidé dès qu'il est accepté : pas de rejeu possible.
-const consommerOtp = async (telephone: string, code: string) => {
+// Contrôler un code OTP sans le consommer.
+// La consommation est séparée pour que le code ne soit invalidé qu'une fois
+// l'opération réussie : un marin sans dossier qui enchaîne sur l'inscription
+// garde ainsi un code utilisable.
+const verifierOtp = async (telephone: string, code: string) => {
   const otp = await prisma.otpCode.findFirst({
     where: { phone: telephone, consumedAt: null },
     orderBy: { createdAt: "desc" },
@@ -109,12 +114,15 @@ const consommerOtp = async (telephone: string, code: string) => {
     throw new UnauthorizedError("Code incorrect.");
   }
 
+  return otp;
+};
+
+// Invalider un code accepté : pas de rejeu possible.
+const consommerOtp = async (otpId: string) => {
   await prisma.otpCode.update({
-    where: { id: otp.id },
+    where: { id: otpId },
     data: { consumedAt: new Date() },
   });
-
-  return otp;
 };
 
 // Construire la paire de jetons d'un marin
@@ -123,9 +131,11 @@ const jetonsMarin = (marinId: string, authorityId: string) => ({
   refreshToken: signRefreshToken({ sub: marinId, type: "MARIN", authorityId }),
 });
 
-// Connecter un marin déjà enregistré
+// Connecter un marin déjà enregistré.
+// Le code est contrôlé en premier : l'existence d'un dossier n'est révélée
+// qu'à un appelant qui détient déjà le code reçu par SMS.
 export const connecterMarin = async (telephone: string, code: string) => {
-  await consommerOtp(telephone, code);
+  const otp = await verifierOtp(telephone, code);
 
   const marin = await prisma.marin.findUnique({
     where: { phone: telephone },
@@ -135,6 +145,8 @@ export const connecterMarin = async (telephone: string, code: string) => {
   if (!marin) {
     throw new NotFoundError("Aucun dossier marin pour ce numéro. Créez votre dossier.");
   }
+
+  await consommerOtp(otp.id);
 
   if (marin.status === MARIN_STATUS.SUSPENDED) {
     throw new BusinessRuleError("Ce dossier marin est suspendu. Contactez la DGAM.");
@@ -156,7 +168,7 @@ export const connecterMarin = async (telephone: string, code: string) => {
 // Le compte reste PENDING : seule une vérification d'identité en personne
 // l'active et attribue le matricule (R1, R3).
 export const inscrireMarin = async (donnees: InscriptionMarin) => {
-  await consommerOtp(donnees.phone, donnees.code);
+  const otp = await verifierOtp(donnees.phone, donnees.code);
 
   const existant = await prisma.marin.findUnique({
     where: { phone: donnees.phone },
@@ -165,6 +177,8 @@ export const inscrireMarin = async (donnees: InscriptionMarin) => {
   if (existant) {
     throw new ValidationError("Un dossier existe déjà pour ce numéro. Connectez-vous.");
   }
+
+  await consommerOtp(otp.id);
 
   // Rattachement à l'autorité nationale par défaut
   const dgam = await prisma.authority.findFirst({

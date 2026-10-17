@@ -1,0 +1,35 @@
+# Dépendances
+node_modules/
+
+# Sorties de build
+dist/
+build/
+
+# Variables d'environnement
+.env
+.env.local
+.env.*.local
+
+# Pièces jointes déposées en développement
+backend/uploads/
+
+# Divers
+.DS_Store
+*.log# Dépendances
+node_modules/
+
+# Sorties de build
+dist/
+build/
+
+# Variables d'environnement
+.env
+.env.local
+.env.*.local
+
+# Pièces jointes déposées en développement
+backend/uploads/
+
+# Divers
+.DS_Store
+*.log

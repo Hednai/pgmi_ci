@@ -19,7 +19,6 @@ import type { Marin } from "../../types/api.js";
 
 interface ReponseOtp {
   expiresAt: string;
-  compteExistant: boolean;
   codeDeveloppement?: string;
 }
 
@@ -56,6 +55,9 @@ export function ConnexionPage() {
   const [code, setCode] = useState("");
   const [erreur, setErreur] = useState("");
   const [chargement, setChargement] = useState(false);
+  // Vrai tant que la vérification du code n'a pas montré l'absence de
+  // dossier. L'API ne le dit plus à la demande de code : elle ne répond
+  // qu'après vérification, pour ne pas devenir un annuaire des marins.
   const [compteExistant, setCompteExistant] = useState(true);
   const [codeDeveloppement, setCodeDeveloppement] = useState<string>();
   const [secondesRestantes, setSecondesRestantes] = useState(DUREE_CODE_SECONDES);
@@ -105,7 +107,6 @@ export function ConnexionPage() {
         { phone: numeroComplet() },
         true,
       );
-      setCompteExistant(reponse.compteExistant);
       setCodeDeveloppement(reponse.codeDeveloppement);
       setSecondesRestantes(DUREE_CODE_SECONDES);
       setEtape("code");
@@ -128,6 +129,12 @@ export function ConnexionPage() {
       connecterMarin(reponse.marin, reponse.accessToken, reponse.refreshToken);
       naviguer("/accueil", { replace: true });
     } catch (err) {
+      // 404 : le code est bon mais aucun dossier n'existe pour ce numéro.
+      // Le code n'a pas été consommé, l'inscription peut le réutiliser.
+      if (err instanceof ErreurApi && err.statut === 404) {
+        setCompteExistant(false);
+        return;
+      }
       setErreur(err instanceof ErreurApi ? err.message : t.commun.erreurReseau);
     } finally {
       setChargement(false);

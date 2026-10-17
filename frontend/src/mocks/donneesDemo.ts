@@ -176,6 +176,21 @@ export const AGENT_DEMO: Agent = {
   lastName: "Koné",
   role: "DGAM_SUPERVISOR",
   roleLabel: "Superviseur",
+  // Habilitations du role DGAM_SUPERVISOR, reprises de la matrice serveur
+  // domain/permissions.ts. Hors mode demonstration, c'est l'API qui les
+  // renvoie : ce tableau ne sert qu'au jeu de donnees local.
+  permissions: [
+    "marin:consulter",
+    "marin:rechercher",
+    "marin:activer",
+    "marin:suspendre",
+    "demande:instruire",
+    "demande:decider",
+    "document:verifier",
+    "embarquement:verifier",
+    "audit:consulter",
+    "tableau-bord:national",
+  ],
   authority: {
     id: "aut-dgam-abj",
     code: "DGAM-CI-ABJ",

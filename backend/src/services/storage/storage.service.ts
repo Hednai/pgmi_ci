@@ -12,6 +12,7 @@ import { randomUUID } from "node:crypto";
 import { logger } from "../../lib/logger.js";
 import { MAX_UPLOAD_BYTES } from "../../domain/rules.js";
 import { ValidationError } from "../../utils/errors.js";
+import { signatureConcorde } from "./signature.js";
 
 export interface FichierEntrant {
   nom: string;
@@ -52,6 +53,14 @@ export const localDiskStorageProvider: StorageProvider = {
 
     if (contenu.byteLength > MAX_UPLOAD_BYTES) {
       throw new ValidationError("Fichier trop volumineux. Taille maximale : 2 Mo.");
+    }
+
+    // Le type réel du fichier est contrôlé sur ses premiers octets : le
+    // mimeType annoncé par le client n'engage que lui.
+    if (!signatureConcorde(fichier.mimeType, contenu)) {
+      throw new ValidationError(
+        "Le fichier ne correspond pas au format annoncé. Renvoyez un JPG, un PNG ou un PDF.",
+      );
     }
 
     const cible = join(RACINE_UPLOADS, dossier);

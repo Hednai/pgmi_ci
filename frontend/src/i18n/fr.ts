@@ -60,6 +60,17 @@ export const fr = {
     renvoyerWhatsapp: "Renvoyer par WhatsApp",
   },
 
+  demonstration: {
+    titre: "Instance de démonstration",
+    explication:
+      "Cette instance présente la plateforme avec des données fictives. Aucun SMS n'est envoyé et aucun paiement n'est débité.",
+    codeSms: "Code SMS :",
+    compteAgent: "Agent :",
+    motDePasse: "Mot de passe :",
+    precisionAgent:
+      "Ces comptes n'existent que sur l'instance de démonstration. L'instance réelle utilise les comptes créés par la DGAM.",
+  },
+
   inscription: {
     titre: "Créer votre dossier",
     etatCivil: "État civil",
@@ -258,6 +269,20 @@ export const fr = {
       REJECTED: "Rejetée",
       CANCELLED: "Annulée",
     } as Record<string, string>,
+    // Remarque PGMI-11 : à chaque statut correspond ce que le marin doit
+    // faire, ou ce qu'il doit attendre. Sans cette table, l'écran affiche un
+    // état sans jamais dire la suite, et le marin rappelle le guichet.
+    prochaineEtape: {
+      SUBMITTED: "Votre demande est enregistrée. La DGAM va l'assigner à un agent instructeur.",
+      AWAITING_PAYMENT: "Réglez les frais de dossier pour que l'instruction démarre.",
+      ASSIGNED: "Un agent instructeur a pris votre dossier. Aucune action de votre part.",
+      IN_REVIEW: "Votre dossier est en cours d'examen. Aucune action de votre part.",
+      INFO_REQUESTED: "Des pièces complémentaires sont attendues. Consultez le motif ci-dessous.",
+      APPROVED: "Votre demande est approuvée. Votre document est en cours d'édition.",
+      DOCUMENT_AVAILABLE: "Votre document est disponible. Téléchargez-le depuis vos documents.",
+      REJECTED: "Votre demande est rejetée. Le motif est indiqué ci-dessous.",
+      CANCELLED: "Cette demande a été annulée. Vous pouvez en soumettre une nouvelle.",
+    } as Record<string, string>,
   },
 
   paiement: {
@@ -342,6 +367,13 @@ export const fr = {
     qrProfessionnel: "Mon QR Code professionnel",
     partagerQr: "Partager mon QR Code",
     region: "Région",
+    photoTitre: "Photo d'identité",
+    photoAide: "JPG ou PNG, 2 Mo maximum. Visage dégagé, de face.",
+    photoAlternative: "Photo d'identité du marin",
+    photoAjouter: "Ajouter une photo",
+    photoRemplacer: "Remplacer la photo",
+    photoSupprimer: "Supprimer",
+    photoTropLourde: "Photo trop lourde. Taille maximale : 2 Mo.",
   },
 
   agent: {

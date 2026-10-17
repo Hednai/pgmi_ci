@@ -1,0 +1,26 @@
+# ============================================
+# .gitattributes
+# Fins de ligne normalisées pour tout le dépôt.
+#
+# Les fichiers du projet mélangeaient LF et CRLF selon leur auteur. Au-delà
+# des diffs illisibles, ce mélange a réellement coûté un correctif de
+# sécurité : un patch écrit en LF n'a pas trouvé sa cible dans un fichier en
+# CRLF, l'échec est passé inaperçu, et la journalisation des lectures de
+# pièces d'identité n'a jamais été appliquée.
+#
+# text=auto eol=lf : Git normalise en LF dans le dépôt et restitue en LF
+# dans la copie de travail, quel que soit le système.
+# ============================================
+* text=auto eol=lf
+
+# Fichiers binaires : jamais convertis
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.pdf binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary

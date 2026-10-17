@@ -9,10 +9,14 @@
 import type { Request, Response, NextFunction } from "express";
 import { filterXSS } from "xss";
 
-// Nettoyer récursivement une valeur quelconque
+// Nettoyer récursivement une valeur quelconque.
+// stripIgnoreTag supprimait tout ce qui suit un chevron ouvrant : la saisie
+// « Service < 12 mois » était enregistrée comme « Service ». Les chevrons
+// sont désormais échappés, aucune saisie n'est amputée. L'échappement
+// d'affichage reste assuré par React et par echapper() dans verify.html.
 const nettoyer = (valeur: unknown): unknown => {
   if (typeof valeur === "string") {
-    return filterXSS(valeur, { whiteList: {}, stripIgnoreTag: true });
+    return filterXSS(valeur, { whiteList: {}, stripIgnoreTagBody: ["script"] });
   }
   if (Array.isArray(valeur)) {
     return valeur.map(nettoyer);

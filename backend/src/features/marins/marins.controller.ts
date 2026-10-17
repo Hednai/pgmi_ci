@@ -11,6 +11,8 @@ import {
   obtenirSyntheseMarin,
   majProfil,
   majPreferences,
+  majPhotoProfil,
+  supprimerPhotoProfil,
   listerMarins,
   activerMarin,
   suspendreMarin,
@@ -51,9 +53,21 @@ export const majMesPreferences = asyncHandler(async (req: Request, res: Response
   res.status(200).json({ success: true, data: serialiserMarin(marin) });
 });
 
+// POST /api/marins/me/photo
+export const deposerMaPhoto = asyncHandler(async (req: Request, res: Response) => {
+  const marin = await majPhotoProfil(acteurCourant(req).id, req.body.fichier);
+  res.status(200).json({ success: true, data: serialiserMarin(marin) });
+});
+
+// DELETE /api/marins/me/photo
+export const supprimerMaPhoto = asyncHandler(async (req: Request, res: Response) => {
+  const marin = await supprimerPhotoProfil(acteurCourant(req).id);
+  res.status(200).json({ success: true, data: serialiserMarin(marin) });
+});
+
 // GET /api/marins
 export const rechercher = asyncHandler(async (req: Request, res: Response) => {
-  const resultat = await listerMarins(req.filtres ?? {});
+  const resultat = await listerMarins(req.filtres ?? {}, acteurCourant(req));
   res.status(200).json({
     success: true,
     data: { ...resultat, items: resultat.items.map(serialiserMarinResume) },

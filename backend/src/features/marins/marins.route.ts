@@ -8,7 +8,12 @@
 // ============================================
 import { Router } from "express";
 import { requireMarin, requireAgent } from "../../middleware/auth.js";
-import { requireRole, requireTrainingInstitution } from "../../middleware/rbac.js";
+import {
+  requireRole,
+  requirePermission,
+  requireTrainingInstitution,
+} from "../../middleware/rbac.js";
+import { PERMISSION } from "../../domain/permissions.js";
 import { validateBody, validateQuery } from "../../middleware/validate.js";
 import { DGAM_DECISION_ROLES, ARSTM_REGISTRAR_ROLES, AGENT_ROLE } from "../../domain/roles.js";
 import {
@@ -18,12 +23,15 @@ import {
   activationSchema,
   inscriptionEleveSchema,
   suspensionSchema,
+  photoProfilSchema,
 } from "./marins.validation.js";
 import {
   monProfil,
   maSynthese,
   majMonProfil,
   majMesPreferences,
+  deposerMaPhoto,
+  supprimerMaPhoto,
   rechercher,
   detailMarin,
   activer,
@@ -44,6 +52,16 @@ marinsRouter.patch(
   validateBody(majPreferencesSchema),
   majMesPreferences,
 );
+
+// Photo de profil (remarque PGMI-02). Déclarées avant /:id pour ne pas être
+// captées par la route paramétrée des agents.
+marinsRouter.post(
+  "/me/photo",
+  requireMarin,
+  validateBody(photoProfilSchema),
+  deposerMaPhoto,
+);
+marinsRouter.delete("/me/photo", requireMarin, supprimerMaPhoto);
 
 // ---- Module C : inscription d'un élève navigant par l'ARSTM ----
 // Déclaré avant /:id pour ne pas être capté par la route paramétrée.
@@ -69,17 +87,23 @@ marinsRouter.get(
 marinsRouter.get(
   "/",
   requireAgent,
+  requirePermission(PERMISSION.MARIN_RECHERCHER),
   validateQuery(rechercheMarinsSchema),
   rechercher,
 );
-marinsRouter.get("/:id", requireAgent, detailMarin);
+marinsRouter.get(
+  "/:id",
+  requireAgent,
+  requirePermission(PERMISSION.MARIN_CONSULTER),
+  detailMarin,
+);
 
 // L'activation et l'attribution du matricule restent DGAM (R1, R20) :
 // aucun rôle ARSTM n'est admis ici.
 marinsRouter.post(
   "/:id/activation",
   requireAgent,
-  requireRole(...DGAM_DECISION_ROLES),
+  requirePermission(PERMISSION.MARIN_ACTIVER),
   validateBody(activationSchema),
   activer,
 );
@@ -87,7 +111,7 @@ marinsRouter.post(
 marinsRouter.post(
   "/:id/suspension",
   requireAgent,
-  requireRole(AGENT_ROLE.DGAM_SUPERVISOR, AGENT_ROLE.PLATFORM_ADMIN),
+  requirePermission(PERMISSION.MARIN_SUSPENDRE),
   validateBody(suspensionSchema),
   suspendre,
 );

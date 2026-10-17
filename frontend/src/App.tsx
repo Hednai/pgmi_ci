@@ -85,8 +85,14 @@ const VerificationPage = lazy(async function () {
   return { default: (await import("./pages/public/VerificationPage.js")).VerificationPage };
 });
 
-const ROLES_ARSTM = ["ARSTM_TRAINING", "ARSTM_REGISTRAR", "ARSTM_MANAGER"];
-const ROLES_DGAM = ["DGAM_AGENT", "DGAM_SUPERVISOR", "PLATFORM_ADMIN", "BUSINESS_ADMIN"];
+// Habilitations requises par écran, au format objet:action renvoyé par le
+// serveur. La liste exprime une alternative : une seule suffit.
+const PERMISSIONS_DEMANDES = ["demande:instruire", "demande:decider"];
+const PERMISSIONS_MARINS = ["marin:rechercher"];
+const PERMISSIONS_VERIFICATIONS = ["document:verifier", "embarquement:verifier"];
+const PERMISSIONS_ARSTM = ["formation:planifier", "eleve:inscrire"];
+const PERMISSIONS_REFERENTIELS = ["referentiel:gerer"];
+const PERMISSIONS_JOURNAL = ["audit:consulter"];
 
 const App = () => {
   const restaurerSession = useAuthStore((etat) => etat.restaurerSession);
@@ -139,7 +145,7 @@ const App = () => {
           <Route
             path="demandes"
             element={
-              <RouteAgent roles={ROLES_DGAM}>
+              <RouteAgent permissions={PERMISSIONS_DEMANDES}>
                 <DemandesAgentPage />
               </RouteAgent>
             }
@@ -147,7 +153,7 @@ const App = () => {
           <Route
             path="marins"
             element={
-              <RouteAgent roles={ROLES_DGAM}>
+              <RouteAgent permissions={PERMISSIONS_MARINS}>
                 <MarinsAgentPage />
               </RouteAgent>
             }
@@ -155,7 +161,7 @@ const App = () => {
           <Route
             path="verifications"
             element={
-              <RouteAgent roles={ROLES_DGAM}>
+              <RouteAgent permissions={PERMISSIONS_VERIFICATIONS}>
                 <VerificationsAgentPage />
               </RouteAgent>
             }
@@ -163,7 +169,7 @@ const App = () => {
           <Route
             path="arstm"
             element={
-              <RouteAgent roles={ROLES_ARSTM}>
+              <RouteAgent permissions={PERMISSIONS_ARSTM}>
                 <ArstmPage />
               </RouteAgent>
             }
@@ -171,7 +177,7 @@ const App = () => {
           <Route
             path="referentiels"
             element={
-              <RouteAgent roles={["BUSINESS_ADMIN", "PLATFORM_ADMIN"]}>
+              <RouteAgent permissions={PERMISSIONS_REFERENTIELS}>
                 <ReferentielsPage />
               </RouteAgent>
             }
@@ -179,7 +185,7 @@ const App = () => {
           <Route
             path="journal"
             element={
-              <RouteAgent roles={["DGAM_SUPERVISOR", "PLATFORM_ADMIN"]}>
+              <RouteAgent permissions={PERMISSIONS_JOURNAL}>
                 <JournalPage />
               </RouteAgent>
             }

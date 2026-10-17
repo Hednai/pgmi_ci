@@ -255,30 +255,54 @@ model Document {
 // Embarquement déclaré par le marin. Seuls les jours vérifiés comptent
 // pour le moteur de conformité (R13).
 model Embarkation {
-  id           String    @id @default(cuid())
+  id           String             @id @default(cuid())
   marinId      String
-  marin        Marin     @relation(fields: [marinId], references: [id], onDelete: Cascade)
+  marin        Marin              @relation(fields: [marinId], references: [id], onDelete: Cascade)
   vesselName   String
   imoNumber    String?
   flag         String?
   vesselType   String?
   fonctionId   String?
-  fonction     Fonction? @relation(fields: [fonctionId], references: [id])
+  fonction     Fonction?          @relation(fields: [fonctionId], references: [id])
   startDate    DateTime
   endDate      DateTime
   // Calculé côté serveur, jamais fourni par le client
-  days         Int       @default(0)
-  status       String    @default("DECLARED")
+  days         Int                @default(0)
+  status       String             @default("DECLARED")
   proofUrl     String?
   rejectReason String?
   verifiedById String?
-  verifiedBy   Agent?    @relation("EmbarkationVerifiedBy", fields: [verifiedById], references: [id])
+  verifiedBy   Agent?             @relation("EmbarkationVerifiedBy", fields: [verifiedById], references: [id])
   verifiedAt   DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  events       EmbarkationEvent[]
 
   @@index([marinId])
   @@index([status])
+}
+
+// Historique des soumissions et des décisions sur un embarquement
+// (remarque PGMI-12). Un champ de statut ne retient que l'état courant :
+// quand un marin soumet, se fait rejeter, corrige et resoumet, seule une
+// table d'événements conserve la trace de ce qui s'est passé. Aucune route
+// ne met à jour ni ne supprime une ligne : l'historique est en ajout seul,
+// comme le journal d'audit.
+model EmbarkationEvent {
+  id            String      @id @default(cuid())
+  embarkationId String
+  embarkation   Embarkation @relation(fields: [embarkationId], references: [id], onDelete: Cascade)
+  // Statut atteint par l'embarquement à cet instant
+  status        String
+  // Motif saisi par l'agent en cas de rejet, nul autrement
+  reason        String?
+  // Qui a provoqué l'événement : MARIN ou AGENT
+  actorType     String
+  actorId       String?
+  actorLabel    String?
+  createdAt     DateTime    @default(now())
+
+  @@index([embarkationId, createdAt])
 }
 
 // ---- Demandes ----

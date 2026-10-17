@@ -64,7 +64,13 @@ export const useAuthStore = create<EtatAuth>((set) => ({
     }
 
     try {
-      const acteur = await api.get<{ id: string; label: string; role: string }>("/api/auth/me");
+      const acteur = await api.get<{
+        id: string;
+        label: string;
+        role: string;
+        permissions: string[];
+      }>("/api/auth/me");
+
       set({
         type: "AGENT",
         agent: {
@@ -74,6 +80,8 @@ export const useAuthStore = create<EtatAuth>((set) => ({
           lastName: acteur.label.split(" ").slice(1).join(" "),
           role: acteur.role,
           roleLabel: acteur.role,
+          // Sans cette ligne, le menu agent se vide au rechargement de page
+          permissions: acteur.permissions ?? [],
           authority: { id: "", code: "", name: "", level: "" },
         },
         marin: null,

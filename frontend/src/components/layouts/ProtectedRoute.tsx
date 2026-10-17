@@ -23,17 +23,27 @@ export const RouteMarin = ({ children }: { children: ReactNode }) => {
 
 export const RouteAgent = ({
   children,
-  roles,
+  permissions,
 }: {
   children: ReactNode;
-  roles?: string[];
+  // Permissions dont au moins une est requise pour afficher l'écran.
+  // Absent : tout agent authentifié est admis.
+  permissions?: string[];
 }) => {
   const { type, agent, initialisation } = useAuthStore();
 
   if (initialisation) return <ChargementPage />;
   if (type !== "AGENT") return <Navigate to="/agent/connexion" replace />;
-  if (roles && agent?.role && !roles.includes(agent.role)) {
-    return <Navigate to="/agent" replace />;
-  }
+
+  // Saisie d'une URL à la main : l'écran n'est pas rendu et l'agent revient
+  // à son tableau de bord. Le serveur refuse de toute façon les appels.
+  const habilite =
+    !permissions ||
+    permissions.some(function (permission) {
+      return (agent?.permissions ?? []).includes(permission);
+    });
+
+  if (!habilite) return <Navigate to="/agent" replace />;
+
   return <>{children}</>;
 };

@@ -7,12 +7,15 @@ import type { Request, Response, NextFunction } from "express";
 import { AppError } from "../utils/errors.js";
 import { logger } from "../lib/logger.js";
 import { estProduction } from "../config/env.js";
+import { MAX_UPLOAD_BYTES } from "../domain/rules.js";
 
 interface ErreurEnrichie extends Error {
   statusCode?: number;
   rule?: string;
   code?: string;
   meta?: { target?: string[] };
+  // Posé par body-parser quand le corps dépasse le plafond de la route
+  type?: string;
 }
 
 const errorHandler = (
@@ -47,6 +50,14 @@ const errorHandler = (
   if (err.name === "ZodError") {
     statusCode = 400;
     message = "Données invalides.";
+  }
+
+  // Corps rejeté par body-parser avant toute lecture métier. Sans ce bloc,
+  // le marin reçoit un message technique en anglais là où l'application
+  // parle français partout ailleurs.
+  if (err.type === "entity.too.large") {
+    statusCode = 413;
+    message = `Fichier ou formulaire trop volumineux. Taille maximale d'une pièce jointe : ${MAX_UPLOAD_BYTES / 1024 / 1024} Mo.`;
   }
 
   // Les erreurs 5xx sont anormales : elles sont journalisées en error,
