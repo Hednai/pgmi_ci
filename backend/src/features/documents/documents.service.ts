@@ -25,6 +25,8 @@ import { logAction, AUDIT_ACTION } from "../../utils/auditLog.js";
 import { NotFoundError, BusinessRuleError, ForbiddenError } from "../../utils/errors.js";
 import { lirePagination, construireReponse } from "../../utils/pagination.js";
 import { ajouterMois, joursAvantExpiration } from "../../utils/dates.js";
+import { diffuser } from "../../services/realtime/realtime.service.js";
+import { EVENEMENT } from "../../domain/evenements.js";
 import type { Acteur } from "../../middleware/auth.js";
 import { z } from "zod";
 import type {
@@ -171,6 +173,13 @@ export const deposerDocument = async (marinId: string, donnees: DepotDocument) =
     metadata: { certificat: type.code },
   });
 
+  // La file de contrôle des agents se remplit en direct.
+  diffuser({
+    evenement: EVENEMENT.DOCUMENT_DEPOSE,
+    donnees: { documentId: document.id, certificat: type.code },
+    marinId,
+  });
+
   return document;
 };
 
@@ -220,6 +229,14 @@ export const verifierDocument = async (
     metadata: { methode: donnees.methode, code },
   });
 
+  // Le marin voit son document passer en vérifié sans recharger, et les
+  // autres agents voient la pièce sortir de la file de contrôle.
+  diffuser({
+    evenement: EVENEMENT.DOCUMENT_STATUT,
+    donnees: { documentId, statut: DOCUMENT_STATUS.VERIFIED },
+    marinId: actualise.marinId,
+  });
+
   return actualise;
 };
 
@@ -245,6 +262,12 @@ export const rejeterDocument = async (documentId: string, motif: string, acteur:
     targetType: "Document",
     targetId: documentId,
     metadata: { motif },
+  });
+
+  diffuser({
+    evenement: EVENEMENT.DOCUMENT_STATUT,
+    donnees: { documentId, statut: DOCUMENT_STATUS.REJECTED },
+    marinId: actualise.marinId,
   });
 
   return actualise;
@@ -316,6 +339,14 @@ export const delivrerDocumentOfficiel = async (parametres: {
   await prisma.document.update({
     where: { id: document.id },
     data: { qrToken: signQrPayload({ documentId: document.id, code, issuedAt: Date.now() }) },
+  });
+
+  // Le coffre documentaire du marin se met à jour pendant qu'il regarde
+  // l'écran, sans qu'il ait à recharger.
+  diffuser({
+    evenement: EVENEMENT.DOCUMENT_DELIVRE,
+    donnees: { documentId: document.id, certificat: type.code, code },
+    marinId: parametres.marinId,
   });
 
   // Chaînage de version : l'ancien document reste consultable et son QR

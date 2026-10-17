@@ -46,6 +46,13 @@ export const AUDIT_ACTION = {
   ENROLLMENT_STATUS_CHANGE: "ENROLLMENT_STATUS_CHANGE",
   REFERENTIAL_UPDATE: "REFERENTIAL_UPDATE",
   QR_VERIFICATION: "QR_VERIFICATION",
+  // Lecture d'une pièce jointe : le fichier est une pièce d'identité ou un
+  // certificat, sa consultation est une action sensible au sens de R14.
+  FILE_READ: "FILE_READ",
+  // Suppression d'une pièce abandonnée après épuisement des tentatives.
+  // Un fichier qui reste dans le stockage alors que l'application le croit
+  // effacé doit être visible, pas noyé dans les journaux techniques.
+  FILE_DELETE_ABANDONED: "FILE_DELETE_ABANDONED",
   EXPIRY_SCAN_RUN: "EXPIRY_SCAN_RUN",
 } as const;
 export type AuditAction = (typeof AUDIT_ACTION)[keyof typeof AUDIT_ACTION];

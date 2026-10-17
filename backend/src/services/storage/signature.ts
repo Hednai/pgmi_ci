@@ -16,6 +16,47 @@ export const SIGNATURES: Record<string, readonly number[][]> = {
   "application/pdf": [[0x25, 0x50, 0x44, 0x46, 0x2d]],
 };
 
+// Extension de fichier imposée pour chaque type accepté.
+//
+// L'extension ne doit jamais venir du nom envoyé par le navigateur : un PDF
+// dont la signature est validée pouvait être écrit sous le nom
+// « piece.html » et servi comme page web depuis le domaine de la
+// plateforme. L'extension découle du type réel, contrôlé sur les octets.
+export const EXTENSIONS_PAR_MIME: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "application/pdf": ".pdf",
+};
+
+// Types acceptés par le cahier des charges. La liste vit ici, à côté des
+// signatures : un type ne peut pas être autorisé sans que sa signature soit
+// connue, et aucun fournisseur de stockage n'en tient une copie.
+//
+// La table des extensions est recoupée avec celle des signatures : un type
+// déclaré d'un seul côté fait échouer le démarrage plutôt que de passer
+// inaperçu jusqu'au premier dépôt.
+export const MIME_AUTORISES = Object.keys(SIGNATURES);
+
+// Libellé des formats acceptés, dérivé des extensions déclarées.
+// Les messages d'erreur annonçaient « JPG, PNG, PDF » alors que le WebP
+// était accepté : un marin voyait son dépôt réussir après un message qui le
+// lui déconseillait. Une seule source, plus de divergence possible.
+export const FORMATS_LIBELLE = MIME_AUTORISES.map(function (mime) {
+  return EXTENSIONS_PAR_MIME[mime].replace(".", "").toUpperCase();
+}).join(", ");
+
+const sansExtension = MIME_AUTORISES.filter(function (mime) {
+  return !EXTENSIONS_PAR_MIME[mime];
+});
+
+if (sansExtension.length > 0) {
+  throw new Error(
+    `Types acceptés sans extension déclarée : ${sansExtension.join(", ")}. ` +
+      "Complétez EXTENSIONS_PAR_MIME dans signature.ts.",
+  );
+}
+
 // Vrai si le contenu commence réellement par une signature du type annoncé.
 // Un type absent de la table est refusé : la liste est fermée, on n'accepte
 // jamais un format inconnu par défaut.

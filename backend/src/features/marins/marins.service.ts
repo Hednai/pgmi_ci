@@ -24,6 +24,12 @@ import {
 import { lirePagination, construireReponse } from "../../utils/pagination.js";
 import { filtrePortee } from "../../domain/permissions.js";
 import { storage } from "../../services/storage/storage.service.js";
+import {
+  planifierSuppression,
+  supprimerMaintenant,
+  MOTIF_SUPPRESSION,
+} from "../../services/storage/suppressionDifferee.js";
+import type { ClientSuppression } from "../../services/storage/suppressionDifferee.js";
 import { joursAvantExpiration } from "../../utils/dates.js";
 import { EXPIRY_WARNING_WINDOW_DAYS } from "../../domain/rules.js";
 import type { Acteur } from "../../middleware/auth.js";
@@ -157,13 +163,19 @@ export const majPhotoProfil = async (
     // L'écriture en base a échoué : le fichier qui vient d'être déposé ne sera
     // référencé par personne, il est retiré du stockage avant de propager
     // l'erreur. Le marin conserve sa photo précédente.
-    await storage.supprimer(stocke.url);
+    //
+    // supprimerMaintenant plutôt qu'un appel direct : si le stockage refuse
+    // aussi, le fichier est inscrit à la file de nettoyage au lieu de
+    // rester orphelin en silence.
+    await supprimerMaintenant(stocke.url, MOTIF_SUPPRESSION.COMPENSATION);
     throw err;
   }
 
-  // L'ancienne photo n'est retirée qu'une fois la nouvelle enregistrée en base
+  // L'ancienne photo n'est retirée qu'une fois la nouvelle enregistrée en
+  // base. Un échec de suppression ne doit pas faire échouer la mise à jour
+  // de la photo : la file de nettoyage rattrape.
   if (marin.photoUrl) {
-    await storage.supprimer(marin.photoUrl);
+    await supprimerMaintenant(marin.photoUrl, MOTIF_SUPPRESSION.REMPLACEMENT);
   }
 
   await logAction({
@@ -190,13 +202,26 @@ export const supprimerPhotoProfil = async (marinId: string) => {
     throw new BusinessRuleError("Aucune photo à supprimer.");
   }
 
-  const actualise = await prisma.marin.update({
-    where: { id: marinId },
-    data: { photoUrl: null },
-    include: INCLUDE_MARIN,
-  });
+  // Le retrait de la référence et l'inscription du fichier à la file de
+  // suppression sont atomiques : la photo ne peut pas disparaître du
+  // dossier sans que son fichier soit programmé pour l'être aussi.
+  const photoRetiree = marin.photoUrl;
 
-  await storage.supprimer(marin.photoUrl);
+  const actualise = await prisma.$transaction(async function (tx) {
+    const marinActualise = await tx.marin.update({
+      where: { id: marinId },
+      data: { photoUrl: null },
+      include: INCLUDE_MARIN,
+    });
+
+    await planifierSuppression(
+      photoRetiree,
+      MOTIF_SUPPRESSION.RETRAIT,
+      tx as unknown as ClientSuppression,
+    );
+
+    return marinActualise;
+  });
 
   await logAction({
     actorType: "MARIN",

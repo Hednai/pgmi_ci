@@ -38,6 +38,21 @@ const envSchema = z.object({
   CINETPAY_SITE_ID: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
 
+  // Stockage distant Supabase.
+  // Ces trois variables sont optionnelles dans le schéma Zod, mais le
+  // superRefine ci-dessous les rend obligatoires dès que STORAGE_PROVIDER
+  // vaut "supabase". En local (STORAGE_PROVIDER=local) elles peuvent être
+  // absentes du .env sans que le serveur refuse de démarrer.
+  SUPABASE_URL: z.string().url().optional(),
+  // Une clé de service Supabase est un JWT : trois segments base64url
+  // séparés par des points. Un min(20) laissait passer une valeur
+  // tronquée, qui n'échouait qu'au premier dépôt, côté marin.
+  SUPABASE_SERVICE_KEY: z
+    .string()
+    .regex(/^[\w-]+\.[\w-]+\.[\w-]+$/, "SUPABASE_SERVICE_KEY doit être un JWT valide.")
+    .optional(),
+  SUPABASE_BUCKET: z.string().min(1).optional(),
+
   // Renvoie le code OTP dans la réponse HTTP. N'est honoré qu'en dehors de
   // la production, ou sur une instance de production explicitement marquée
   // comme instance de démonstration.
@@ -53,10 +68,40 @@ const envSchema = z.object({
     .optional()
     .transform((valeur) => valeur === "true"),
 })
-  // Verrou de configuration : une démonstration ne doit jamais tourner devant
-  // une passerelle SMS réelle, sinon de vrais codes partiraient vers de vrais
-  // numéros pendant une présentation.
   .superRefine((valeurs, contexte) => {
+    // Un stockage distant sans identifiants partirait en production et
+    // n'échouerait qu'au premier dépôt de fichier, côté marin. Mieux vaut
+    // refuser de démarrer.
+    if (valeurs.STORAGE_PROVIDER === "supabase") {
+      const manquantes = (
+        [
+          ["SUPABASE_URL", valeurs.SUPABASE_URL],
+          ["SUPABASE_SERVICE_KEY", valeurs.SUPABASE_SERVICE_KEY],
+          ["SUPABASE_BUCKET", valeurs.SUPABASE_BUCKET],
+        ] as const
+      )
+        .filter(function (entree) {
+          return !entree[1];
+        })
+        .map(function (entree) {
+          return entree[0];
+        });
+
+      if (manquantes.length > 0) {
+        // Le bucket est exigé explicitement plutôt que laissé au repli :
+        // déployer sur le bucket par défaut sans l'avoir voulu reviendrait
+        // à écrire des pièces d'identité dans un emplacement non prévu.
+        contexte.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["STORAGE_PROVIDER"],
+          message: `STORAGE_PROVIDER=supabase exige : ${manquantes.join(", ")}.`,
+        });
+      }
+    }
+
+    // Une instance de démonstration ne doit jamais utiliser une passerelle
+    // SMS réelle, sinon de vrais codes partiraient vers de vrais numéros
+    // pendant une présentation.
     if (valeurs.DEMO_MODE && valeurs.SMS_PROVIDER !== "console") {
       contexte.addIssue({
         code: z.ZodIssueCode.custom,

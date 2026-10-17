@@ -11,15 +11,34 @@ import { EMBARKATION_STATUS } from "../../domain/status.js";
 import { calculerJoursEmbarquement } from "../../utils/dates.js";
 import { logAction, AUDIT_ACTION } from "../../utils/auditLog.js";
 import { storage } from "../../services/storage/storage.service.js";
-import { NotFoundError, BusinessRuleError, ForbiddenError } from "../../utils/errors.js";
+import {
+  NotFoundError,
+  BusinessRuleError,
+  ForbiddenError,
+  ValidationError,
+} from "../../utils/errors.js";
 import { lirePagination, construireReponse } from "../../utils/pagination.js";
 import { logger } from "../../lib/logger.js";
 import { notifierMarin, NOTIFICATION_EVENT } from "../../services/notification/notification.service.js";
+import { diffuser } from "../../services/realtime/realtime.service.js";
+import { EVENEMENT } from "../../domain/evenements.js";
+import {
+  definitionPiece,
+  piecesObligatoiresManquantes,
+} from "../../domain/piecesServiceMer.js";
+import {
+  planifierSuppression,
+  supprimerMaintenant,
+  MOTIF_SUPPRESSION,
+} from "../../services/storage/suppressionDifferee.js";
+import type { ClientSuppression } from "../../services/storage/suppressionDifferee.js";
 import type { Acteur } from "../../middleware/auth.js";
 
 const INCLUDE_EMBARQUEMENT = {
   fonction: true,
   verifiedBy: { select: { firstName: true, lastName: true } },
+  // Pièces justificatives, de la plus ancienne à la plus récente.
+  proofs: { orderBy: { uploadedAt: "asc" as const } },
   // Historique des soumissions et des décisions, du plus ancien au plus
   // récent : l'écran du marin peut ainsi montrer le motif d'un rejet
   // précédent à côté de la preuve qu'il vient de redéposer.
@@ -128,32 +147,162 @@ export const declarerEmbarquement = async (
   return embarquement;
 };
 
-// Joindre une preuve (attestation d'armateur, page du discharge book) et
-// soumettre l'embarquement à vérification.
-export const soumettreEmbarquement = async (
-  embarquementId: string,
-  marinId: string,
-  fichier: { nom: string; mimeType: string; contenuBase64: string },
-) => {
-  const embarquement = await prisma.embarkation.findUnique({ where: { id: embarquementId } });
+// Embarquement du marin, contrôlé : existence, appartenance au dossier,
+// et possibilité de le modifier encore. Les trois contrôles étaient écrits
+// dans la soumission ; le dépôt de pièce en a besoin à l'identique.
+const embarquementModifiable = async (embarquementId: string, marinId: string) => {
+  const embarquement = await prisma.embarkation.findUnique({
+    where: { id: embarquementId },
+    include: { proofs: true },
+  });
+
   if (!embarquement) throw new NotFoundError("Embarquement introuvable.");
+
   if (embarquement.marinId !== marinId) {
     throw new ForbiddenError("Cet embarquement ne figure pas dans votre dossier.");
   }
+
   if (embarquement.status === EMBARKATION_STATUS.VERIFIED) {
     throw new BusinessRuleError("Cet embarquement est déjà vérifié.");
   }
 
+  return embarquement;
+};
+
+// Déposer une pièce justificative. Le dépôt ne soumet rien : le marin
+// constitue son dossier pièce par pièce, puis le soumet quand il est
+// complet. Séparer les deux permet d'annoncer précisément ce qui manque.
+export const deposerPieceEmbarquement = async (
+  embarquementId: string,
+  marinId: string,
+  kind: string,
+  fichier: { nom: string; mimeType: string; contenuBase64: string },
+) => {
+  const embarquement = await embarquementModifiable(embarquementId, marinId);
+
+  const definition = definitionPiece(kind);
+  if (!definition) {
+    throw new ValidationError("Type de pièce justificative inconnu.");
+  }
+
+  // Pièce à exemplaire unique déjà déposée : elle sera remplacée. Laisser
+  // s'accumuler des pièces d'identité remplacées serait une conservation
+  // sans motif.
+  const remplacee = definition.multiple
+    ? undefined
+    : embarquement.proofs.find(function (piece) {
+        return piece.kind === kind;
+      });
+
+  // ORDRE CRITIQUE, à ne pas inverser.
+  //
+  // Le nouveau fichier est stocké AVANT que l'ancien ne soit retiré. La
+  // base et le stockage objet ne partagent pas de transaction : supprimer
+  // d'abord laissait le marin sans aucune pièce si le dépôt échouait
+  // ensuite. Sur un remplacement de page de livret maritime, c'est une
+  // perte de pièce justificative, pas un désagrément.
   const stocke = await storage.enregistrer(`marins/${marinId}/sea-service`, fichier);
+
+  try {
+    // La création de la nouvelle ligne et la suppression de l'ancienne sont
+    // atomiques, ainsi que l'inscription du fichier remplacé à la file de
+    // suppression : soit les trois, soit aucune.
+    await prisma.$transaction(async function (tx) {
+      await tx.embarkationProof.create({
+        data: {
+          embarkationId: embarquementId,
+          kind,
+          fileUrl: stocke.url,
+          fileName: stocke.nom,
+          mimeType: stocke.mimeType,
+          size: stocke.taille,
+        },
+      });
+
+      if (remplacee) {
+        await tx.embarkationProof.delete({ where: { id: remplacee.id } });
+        await planifierSuppression(
+          remplacee.fileUrl,
+          MOTIF_SUPPRESSION.REMPLACEMENT,
+          tx as unknown as ClientSuppression,
+        );
+      }
+    });
+  } catch (err) {
+    // Compensation : le fichier vient d'être déposé alors que la base a
+    // refusé. Sans ce rattrapage, il resterait orphelin dans le bucket.
+    await supprimerMaintenant(stocke.url, MOTIF_SUPPRESSION.COMPENSATION);
+    throw err;
+  }
+
+  return prisma.embarkation.findUniqueOrThrow({
+    where: { id: embarquementId },
+    include: INCLUDE_EMBARQUEMENT,
+  });
+};
+
+// Retirer une pièce avant soumission.
+export const retirerPieceEmbarquement = async (
+  embarquementId: string,
+  pieceId: string,
+  marinId: string,
+) => {
+  const embarquement = await embarquementModifiable(embarquementId, marinId);
+
+  const piece = embarquement.proofs.find(function (valeur) {
+    return valeur.id === pieceId;
+  });
+
+  if (!piece) throw new NotFoundError("Pièce justificative introuvable.");
+
+  // La ligne est retirée et le fichier inscrit à la file de suppression
+  // dans la même transaction. Le retrait ne doit pas échouer parce que le
+  // stockage est momentanément injoignable : le travail de nettoyage
+  // rattrapera, et la base fait foi entre-temps.
+  await prisma.$transaction(async function (tx) {
+    await tx.embarkationProof.delete({ where: { id: piece.id } });
+    await planifierSuppression(
+      piece.fileUrl,
+      MOTIF_SUPPRESSION.RETRAIT,
+      tx as unknown as ClientSuppression,
+    );
+  });
+
+  return prisma.embarkation.findUniqueOrThrow({
+    where: { id: embarquementId },
+    include: INCLUDE_EMBARQUEMENT,
+  });
+};
+
+// Soumettre l'embarquement à vérification, une fois les pièces déposées.
+export const soumettreEmbarquement = async (embarquementId: string, marinId: string) => {
+  const embarquement = await embarquementModifiable(embarquementId, marinId);
+
+  // Les pièces historiques n'ont pas de type : un embarquement déclaré
+  // avant la gestion multi-pièces et déjà pourvu d'un proofUrl reste
+  // soumissible, sinon la correction casserait des dossiers en cours.
+  const heritee = Boolean(embarquement.proofUrl) && embarquement.proofs.length === 0;
+  const manquantes = heritee ? [] : piecesObligatoiresManquantes(embarquement.proofs);
+
+  if (manquantes.length > 0) {
+    const libelles = manquantes
+      .map(function (code) {
+        return definitionPiece(code)?.libelle ?? code;
+      })
+      .join(" ; ");
+
+    throw new BusinessRuleError(
+      `Dossier incomplet. Pièces obligatoires manquantes : ${libelles}.`,
+      "R11",
+    );
+  }
 
   const actualise = await prisma.embarkation.update({
     where: { id: embarquementId },
-    data: { proofUrl: stocke.url, status: EMBARKATION_STATUS.SUBMITTED, rejectReason: null },
+    data: { status: EMBARKATION_STATUS.SUBMITTED, rejectReason: null },
     include: INCLUDE_EMBARQUEMENT,
   });
 
-  // Une resoumission après rejet produit un nouvel événement : le rejet
-  // précédent et son motif restent lisibles dans l'historique.
   await consignerEvenement({
     embarkationId: embarquementId,
     status: EMBARKATION_STATUS.SUBMITTED,
@@ -165,7 +314,18 @@ export const soumettreEmbarquement = async (
     action: AUDIT_ACTION.EMBARKATION_SUBMIT,
     targetType: "Embarkation",
     targetId: embarquementId,
-    metadata: { navire: embarquement.vesselName, jours: embarquement.days },
+    metadata: {
+      navire: embarquement.vesselName,
+      jours: embarquement.days,
+      pieces: embarquement.proofs.length,
+    },
+  });
+
+  // La file de vérification des agents se remplit en direct.
+  diffuser({
+    evenement: EVENEMENT.EMBARQUEMENT_SOUMIS,
+    donnees: { embarquementId, navire: embarquement.vesselName },
+    marinId,
   });
 
   return actualise;
@@ -233,6 +393,16 @@ export const verifierEmbarquement = async (embarquementId: string, acteur: Acteu
     acteur,
   });
 
+  diffuser({
+    evenement: EVENEMENT.EMBARQUEMENT_STATUT,
+    donnees: {
+      embarquementId,
+      statut: EMBARKATION_STATUS.VERIFIED,
+      jours: actualise.days,
+    },
+    marinId: embarquement.marinId,
+  });
+
   // Le marin doit savoir que ses jours sont désormais comptabilisables :
   // c'est la donnée qui conditionne ses demandes de renouvellement.
   await notifierMarin({
@@ -270,6 +440,12 @@ export const rejeterEmbarquement = async (
     status: EMBARKATION_STATUS.REJECTED,
     reason: motif,
     acteur,
+  });
+
+  diffuser({
+    evenement: EVENEMENT.EMBARQUEMENT_STATUT,
+    donnees: { embarquementId, statut: EMBARKATION_STATUS.REJECTED },
+    marinId: actualise.marinId,
   });
 
   // Remarque PGMI-12 : le motif était enregistré en base sans que personne

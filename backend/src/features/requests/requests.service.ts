@@ -31,10 +31,16 @@ import {
 } from "../../utils/errors.js";
 import { storage } from "../../services/storage/storage.service.js";
 import {
+  supprimerMaintenant,
+  MOTIF_SUPPRESSION,
+} from "../../services/storage/suppressionDifferee.js";
+import {
   notifierMarin,
   NOTIFICATION_EVENT,
 } from "../../services/notification/notification.service.js";
 import { delivrerDocumentOfficiel } from "../documents/documents.service.js";
+import { diffuser } from "../../services/realtime/realtime.service.js";
+import { EVENEMENT } from "../../domain/evenements.js";
 import type { Acteur } from "../../middleware/auth.js";
 
 const INCLUDE_DEMANDE = {
@@ -100,6 +106,14 @@ const changerStatut = async (parametres: {
     targetType: "RenewalRequest",
     targetId: demande.id,
     metadata: { de: demande.status, vers: parametres.cible, ...(parametres.metadata ?? {}) },
+  });
+
+  // Les écrans ouverts sur ce dossier se rafraîchissent sans rechargement.
+  // La diffusion suit l'écriture : rien n'est annoncé qui ne soit enregistré.
+  diffuser({
+    evenement: EVENEMENT.DEMANDE_STATUT,
+    donnees: { demandeId: demande.id, reference: demande.reference, statut: parametres.cible },
+    marinId: demande.marinId,
   });
 
   if (parametres.messageMarin) {
@@ -180,15 +194,24 @@ export const soumettreDemande = async (parametres: {
   if (donnees.attachments?.length) {
     for (const fichier of donnees.attachments) {
       const stocke = await storage.enregistrer(`demandes/${demande.id}`, fichier);
-      await prisma.requestAttachment.create({
-        data: {
-          requestId: demande.id,
-          fileName: stocke.nom,
-          fileUrl: stocke.url,
-          mimeType: stocke.mimeType,
-          size: stocke.taille,
-        },
-      });
+
+      try {
+        await prisma.requestAttachment.create({
+          data: {
+            requestId: demande.id,
+            fileName: stocke.nom,
+            fileUrl: stocke.url,
+            mimeType: stocke.mimeType,
+            size: stocke.taille,
+          },
+        });
+      } catch (err) {
+        // Compensation : le fichier est déposé mais la base l'a refusé. Sans
+        // ce rattrapage, il resterait orphelin dans le stockage, invisible
+        // de l'application mais bien présent dans le bucket.
+        await supprimerMaintenant(stocke.url, MOTIF_SUPPRESSION.COMPENSATION);
+        throw err;
+      }
     }
   }
 
@@ -205,6 +228,13 @@ export const soumettreDemande = async (parametres: {
       soumisPar: parametres.submittedByRole,
       montant,
     },
+  });
+
+  // La file d'instruction de la DGAM se remplit en direct.
+  diffuser({
+    evenement: EVENEMENT.DEMANDE_CREEE,
+    donnees: { demandeId: demande.id, reference: demande.reference, montant },
+    marinId,
   });
 
   await notifierMarin({
@@ -264,6 +294,12 @@ export const confirmerPaiementDemande = async (requestId: string) => {
 
   const paye = demande.payments.some((paiement) => paiement.status === PAYMENT_STATUS.PAID);
   if (!paye) throw new BusinessRuleError("Aucun paiement confirmé sur cette demande.", "R8");
+
+  diffuser({
+    evenement: EVENEMENT.PAIEMENT_CONFIRME,
+    donnees: { demandeId: demande.id, reference: demande.reference },
+    marinId: demande.marinId,
+  });
 
   if (demande.status !== REQUEST_STATUS.AWAITING_PAYMENT) return demande;
 

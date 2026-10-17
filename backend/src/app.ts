@@ -14,7 +14,7 @@ import compression from "compression";
 import rateLimit from "express-rate-limit";
 import { join } from "node:path";
 import { corsMiddleware } from "./config/cors.js";
-import { REQUETE, RATE_LIMIT } from "./config/constants.js";
+import { REQUETE, RATE_LIMIT, CHEMIN_FLUX_TEMPS_REEL } from "./config/constants.js";
 import { MAX_JSON_BODY_UPLOAD, MAX_JSON_BODY_DEMANDE } from "./domain/rules.js";
 import { env } from "./config/env.js";
 import xssClean from "./middleware/xssClean.js";
@@ -37,7 +37,9 @@ import { formationsRouter } from "./features/training/training.route.js";
 import { dashboardRouter } from "./features/dashboard/dashboard.route.js";
 import { auditRouter } from "./features/audit/audit.route.js";
 import { filesRouter } from "./features/files/files.route.js";
+import { tempsReelRouter } from "./features/realtime/realtime.route.js";
 import { verifierCode } from "./features/verification/verification.service.js";
+import { verifyLimiter } from "./middleware/limiteurs.js";
 
 const app = express();
 
@@ -51,13 +53,24 @@ app.use(
     // La page de vérification est servie par ce même serveur et charge la
     // photo du marin depuis /uploads : la politique reste stricte mais
     // autorise ces deux sources.
+    //
+    // scriptSrc ne contient plus 'unsafe-inline' : le script de la page
+    // publique a été sorti dans /verify.js. C'est la page la plus exposée
+    // de la plateforme, elle ne doit exécuter que du code servi par le
+    // domaine lui-même.
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
         imgSrc: ["'self'", "data:"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         connectSrc: ["'self'"],
+        // Aucune page de ce serveur n'est censée être encadrée ni soumettre
+        // de formulaire ailleurs.
+        frameAncestors: ["'none'"],
+        formAction: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
       },
     },
     crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -77,7 +90,15 @@ app.use("/api", (_req, res, next) => {
 });
 
 app.use(corsMiddleware);
-app.use(compression());
+// La compression met les réponses en tampon : sur un flux Server-Sent
+// Events, rien n'arriverait au client avant plusieurs kilo-octets
+// accumulés. Le flux est donc exclu, le reste de l'API reste compressé.
+app.use(
+  compression({
+    filter: (req, res) =>
+      req.path.startsWith(CHEMIN_FLUX_TEMPS_REEL) ? false : compression.filter(req, res),
+  }),
+);
 
 // ---- Corps de requête ----
 // Les routes qui transportent un fichier encodé en base64 sont déclarées
@@ -111,10 +132,17 @@ app.use(
 // de profil, affichées par la page publique de vérification (R10). Les
 // certificats, Sea Time et pièces jointes passent par /uploads, qui
 // vérifie l'identité du demandeur.
-app.use(
-  "/uploads/public",
-  express.static(join(process.cwd(), "uploads", "public"), { maxAge: "7d" }),
-);
+//
+// Ce montage n'a de sens qu'en stockage local. Avec un stockage distant les
+// fichiers ne sont plus sur le disque : le laisser actif ferait répondre un
+// 404 à toutes les photos au lieu de laisser la main à la route des pièces
+// jointes, qui sait, elle, produire une URL signée.
+if (env.STORAGE_PROVIDER === "local") {
+  app.use(
+    "/uploads/public",
+    express.static(join(process.cwd(), "uploads", "public"), { maxAge: "7d" }),
+  );
+}
 
 // ---- Sondes de santé ----
 // Deux sondes distinctes, selon la convention Kubernetes :
@@ -161,6 +189,13 @@ app.get("/v/:code", (_req, res) => {
   res.sendFile(join(process.cwd(), "public", "verify.html"));
 });
 
+// Script de cette page, servi depuis le même domaine pour que la politique
+// de sécurité du contenu puisse interdire les scripts en ligne.
+app.get("/verify.js", (_req, res) => {
+  res.type("application/javascript");
+  res.sendFile(join(process.cwd(), "public", "verify.js"));
+});
+
 // ---- API ----
 app.use("/api/auth", authRouter);
 app.get("/api/auth/me", requireAgent, profilCourant);
@@ -177,14 +212,22 @@ app.use("/api/formations", formationsRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/audit", auditRouter);
 
+// Flux temps réel. Monté après les autres routes API : il ne sert aucune
+// donnée, il ne fait qu'annoncer un changement aux écrans concernés.
+app.use("/api/temps-reel", tempsReelRouter);
+
 // Tout le reste des pièces jointes passe par une route qui vérifie
 // l'identité du demandeur. Le préfixe reste /uploads : les URL déjà
 // enregistrées en base restent valides, aucune migration nécessaire.
 app.use("/uploads", filesRouter);
 
-// Vérification par code court, appelée par la page HTML statique
+// Vérification par code court, appelée par la page HTML statique.
+// Même plafond que /api/verification/:code : c'est le même service public,
+// et cette route échappait jusqu'ici au limiteur dédié pour retomber sur le
+// plafond générique de l'API, bien plus large.
 app.get(
   "/api/v/:code",
+  verifyLimiter,
   asyncHandler(async (req, res) => {
     const resultat = await verifierCode(String(req.params.code), req);
     res.status(200).json({ success: true, data: resultat });
