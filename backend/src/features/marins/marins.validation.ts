@@ -5,15 +5,23 @@
 import { z } from "zod";
 import { telephoneSchema } from "../auth/auth.validation.js";
 import { MARIN_STATUS } from "../../domain/status.js";
+import { fichierSchema } from "../documents/documents.validation.js";
 
 // Mise à jour du profil par le marin lui-même.
 // Ni le matricule ni le statut ne figurent ici : ils relèvent de la DGAM (R3).
+// La photo non plus : elle passe par une route dédiée qui contrôle le
+// format, la taille et le type réel du fichier déposé.
 export const majProfilSchema = z.object({
   email: z.string().trim().email("Adresse email invalide").optional().or(z.literal("")),
   region: z.string().trim().max(80).optional(),
   shipCategory: z.string().trim().max(80).optional(),
   fonctionId: z.string().trim().min(1).optional(),
-  photoUrl: z.string().trim().max(300).optional(),
+});
+
+// Dépôt ou remplacement de la photo de profil. Le fichier réutilise le
+// schéma commun des pièces jointes.
+export const photoProfilSchema = z.object({
+  fichier: fichierSchema,
 });
 
 // Préférences de notification. Le SMS est absent : il n'est pas

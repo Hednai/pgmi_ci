@@ -3,8 +3,8 @@
 // Coquille du poste agent : barre latérale fixe, pensée pour un écran de
 // bureau au guichet.
 //
-// Les entrées de menu sont filtrées par rôle : un agent ARSTM ne voit pas
-// les files d'instruction de la DGAM, et inversement.
+// Les entrées de menu sont filtrées par habilitation : un agent ARSTM ne
+// voit pas les files d'instruction de la DGAM, et inversement.
 // ============================================
 import { NavLink, Outlet } from "react-router-dom";
 import { t } from "../../i18n/index.js";
@@ -13,48 +13,64 @@ import { api } from "../../lib/apiClient.js";
 import { Icone } from "../atoms/Icone.js";
 import type { NomIcone } from "../atoms/Icone.js";
 import { initiales } from "../../lib/format.js";
+import { useHabilitation } from "../../hooks/useHabilitation.js";
 
 interface EntreeMenu {
   chemin: string;
   libelle: string;
   icone: NomIcone;
-  roles?: string[];
+  // Une seule des permissions listées suffit à afficher l'entrée
+  permissions?: string[];
 }
-
-const ROLES_DGAM = ["DGAM_AGENT", "DGAM_SUPERVISOR", "PLATFORM_ADMIN", "BUSINESS_ADMIN"];
-const ROLES_ARSTM = ["ARSTM_TRAINING", "ARSTM_REGISTRAR", "ARSTM_MANAGER"];
 
 const MENU: EntreeMenu[] = [
   { chemin: "/agent", libelle: t.navigation.tableauBord, icone: "tableauBord" },
-  { chemin: "/agent/demandes", libelle: t.navigation.demandes, icone: "demandes", roles: ROLES_DGAM },
-  { chemin: "/agent/marins", libelle: t.navigation.marins, icone: "marins", roles: ROLES_DGAM },
+  {
+    chemin: "/agent/demandes",
+    libelle: t.navigation.demandes,
+    icone: "demandes",
+    permissions: ["demande:instruire", "demande:decider"],
+  },
+  {
+    chemin: "/agent/marins",
+    libelle: t.navigation.marins,
+    icone: "marins",
+    permissions: ["marin:rechercher"],
+  },
   {
     chemin: "/agent/verifications",
     libelle: t.navigation.verifications,
     icone: "verifications",
-    roles: ROLES_DGAM,
+    permissions: ["document:verifier", "embarquement:verifier"],
   },
-  { chemin: "/agent/arstm", libelle: t.navigation.arstm, icone: "formations", roles: ROLES_ARSTM },
+  {
+    chemin: "/agent/arstm",
+    libelle: t.navigation.arstm,
+    icone: "formations",
+    permissions: ["formation:planifier", "eleve:inscrire"],
+  },
   {
     chemin: "/agent/referentiels",
     libelle: t.navigation.referentiels,
     icone: "referentiels",
-    roles: ["BUSINESS_ADMIN", "PLATFORM_ADMIN"],
+    permissions: ["referentiel:gerer"],
   },
   {
     chemin: "/agent/journal",
     libelle: t.navigation.journal,
     icone: "journal",
-    roles: ["DGAM_SUPERVISOR", "PLATFORM_ADMIN"],
+    permissions: ["audit:consulter"],
   },
 ];
 
 export const AgentLayout = () => {
   const agent = useAuthStore((etat) => etat.agent);
   const deconnecter = useAuthStore((etat) => etat.deconnecter);
+  const { peutAuMoins } = useHabilitation();
 
+  // Une entrée sans permission déclarée est ouverte à tout agent authentifié
   const entrees = MENU.filter(
-    (entree) => !entree.roles || (agent?.role && entree.roles.includes(agent.role)),
+    (entree) => !entree.permissions || peutAuMoins(entree.permissions),
   );
 
   const gererDeconnexion = async () => {
@@ -159,7 +175,9 @@ export const AgentLayout = () => {
           ))}
         </nav>
 
-        <main className="p-4 lg:p-8">
+        {/* Au-delà de 1280 px, une ligne de tableau devenait illisible de bout
+            en bout. Le contenu reste centré sur une largeur de lecture. */}
+        <main className="mx-auto max-w-7xl p-4 lg:p-8">
           <Outlet />
         </main>
       </div>

@@ -20,16 +20,26 @@ export interface JwtPayload {
   exp?: number;
 }
 
+// Algorithme épinglé à la signature comme à la vérification : un jeton
+// présenté avec un autre algorithme est rejeté sans être examiné.
+const ALGORITHME = "HS256" as const;
+
 export const signAccessToken = (payload: JwtPayload): string =>
-  jwt.sign(payload, env.JWT_ACCESS_SECRET, { expiresIn: ACCESS_TOKEN_TTL });
+  jwt.sign(payload, env.JWT_ACCESS_SECRET, {
+    algorithm: ALGORITHME,
+    expiresIn: ACCESS_TOKEN_TTL,
+  });
 
 export const signRefreshToken = (payload: JwtPayload): string =>
-  jwt.sign(payload, env.JWT_REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_TTL });
+  jwt.sign(payload, env.JWT_REFRESH_SECRET, {
+    algorithm: ALGORITHME,
+    expiresIn: REFRESH_TOKEN_TTL,
+  });
 
 // Retourne null au lieu de lever : l'appelant décide du code HTTP
 export const verifyAccessToken = (token: string): JwtPayload | null => {
   try {
-    return jwt.verify(token, env.JWT_ACCESS_SECRET) as JwtPayload;
+    return jwt.verify(token, env.JWT_ACCESS_SECRET, { algorithms: [ALGORITHME] }) as JwtPayload;
   } catch {
     return null;
   }
@@ -37,7 +47,7 @@ export const verifyAccessToken = (token: string): JwtPayload | null => {
 
 export const verifyRefreshToken = (token: string): JwtPayload | null => {
   try {
-    return jwt.verify(token, env.JWT_REFRESH_SECRET) as JwtPayload;
+    return jwt.verify(token, env.JWT_REFRESH_SECRET, { algorithms: [ALGORITHME] }) as JwtPayload;
   } catch {
     return null;
   }

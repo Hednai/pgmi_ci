@@ -14,6 +14,7 @@ import {
   rafraichirJeton,
 } from "./auth.service.js";
 import { serialiserMarin } from "../marins/marin.serializer.js";
+import { permissionsDuRole } from "../../domain/permissions.js";
 
 // POST /api/auth/otp/request
 export const demanderOtp = asyncHandler(async (req: Request, res: Response) => {
@@ -66,5 +67,15 @@ export const rafraichir = asyncHandler(async (req: Request, res: Response) => {
 // Renvoie l'identité de l'appelant, quel que soit son type. Le frontend
 // s'en sert au rechargement de page pour restaurer la session.
 export const profilCourant = asyncHandler(async (req: Request, res: Response) => {
-  res.status(200).json({ success: true, data: req.acteur });
+  const acteur = req.acteur;
+
+  res.status(200).json({
+    success: true,
+    data: {
+      ...acteur,
+      // Habilitations résolues par le serveur, pour que la session restaurée
+      // retrouve exactement les droits obtenus à la connexion.
+      permissions: acteur?.type === "AGENT" ? permissionsDuRole(acteur.role) : [],
+    },
+  });
 });

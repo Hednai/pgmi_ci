@@ -36,6 +36,18 @@ import {
 export const JETON_MARIN_DEMO = "demo.marin.token";
 export const JETON_AGENT_DEMO = "demo.agent.token";
 
+// Identifiants affichés dans le bandeau de démonstration.
+// Exportés depuis ce fichier pour rester cohérents avec les comptes définis
+// dans donneesDemo.ts, sans dupliquer les valeurs.
+export const IDENTIFIANTS_DEMO = {
+  otpCode: CODE_OTP_DEMO,
+  comptes: COMPTES_AGENT_DEMO.map((c) => ({
+    email: c.email,
+    motDePasse: c.motDePasse,
+    role: c.agent.role,
+  })),
+};
+
 // Latence simulée, en millisecondes. Elle rend visibles les indicateurs de
 // chargement de l'interface, comme sur une connexion mobile réelle.
 const LATENCE_MS = 260;
@@ -99,9 +111,10 @@ function routerAuthentification(
   jeton: string | null,
 ): ReponseDemo | null {
   if (chemin === "/api/auth/otp/request" && methode === "POST") {
+    // L'existence du dossier n'est plus révélée à cette étape (C3) :
+    // la réponse est identique pour un numéro connu et un numéro inconnu.
     return succes({
       expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-      compteExistant: true,
       codeDeveloppement: CODE_OTP_DEMO,
     });
   }

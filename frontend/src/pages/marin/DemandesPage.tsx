@@ -98,6 +98,13 @@ export function DemandesPage() {
               />
             </div>
 
+            {/* Ce que le marin doit faire, ou attendre, pour ce statut
+                (remarque PGMI-11). Affiché sous le badge, qui ne dit que
+                l'état et jamais la suite. */}
+            <p className="mt-2 text-xs leading-relaxed text-ardoise">
+              {libelle(t.demandes.prochaineEtape, demande.status)}
+            </p>
+
             {/* Pièces complémentaires demandées : c'est l'action attendue du
                 marin, elle est mise en avant. */}
             {demande.additionalInfo && demande.status === "INFO_REQUESTED" && (

@@ -5,11 +5,13 @@
 // (5 OTP par heure et par numéro) appartient à cette fonctionnalité.
 // ============================================
 import { Router } from "express";
+import type { Request } from "express";
 import rateLimit from "express-rate-limit";
 import { RATE_LIMIT } from "../../config/constants.js";
 import { validateBody } from "../../middleware/validate.js";
 import { requireAgent } from "../../middleware/auth.js";
 import {
+  telephoneSchema,
   demandeOtpSchema,
   verificationOtpSchema,
   inscriptionMarinSchema,
@@ -28,6 +30,15 @@ import {
 
 const authRouter = Router();
 
+// Clé de limitation : le numéro passe par le même schéma que la validation,
+// jamais la chaîne brute. Le limiteur s'exécute avant validateBody, donc
+// sans cette normalisation deux écritures du même abonné ouvrent deux
+// compteurs distincts et le plafond se contourne en ajoutant un espace.
+const cleTelephone = (req: Request): string => {
+  const resultat = telephoneSchema.safeParse(req.body?.phone);
+  return resultat.success ? resultat.data : (req.ip ?? "inconnu");
+};
+
 // Limite par numéro de téléphone et non par adresse IP : dans un cybercafé
 // d'Abidjan, plusieurs marins partagent la même IP.
 const otpLimiter = rateLimit({
@@ -35,7 +46,7 @@ const otpLimiter = rateLimit({
   limit: RATE_LIMIT.OTP_MAX,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  keyGenerator: (req) => String(req.body?.phone ?? req.ip),
+  keyGenerator: cleTelephone,
   message: {
     success: false,
     message: "Trop de demandes de code pour ce numéro. Réessayez dans une heure.",

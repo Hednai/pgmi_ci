@@ -13,12 +13,44 @@ import { logAction, AUDIT_ACTION } from "../../utils/auditLog.js";
 import { storage } from "../../services/storage/storage.service.js";
 import { NotFoundError, BusinessRuleError, ForbiddenError } from "../../utils/errors.js";
 import { lirePagination, construireReponse } from "../../utils/pagination.js";
+import { logger } from "../../lib/logger.js";
+import { notifierMarin, NOTIFICATION_EVENT } from "../../services/notification/notification.service.js";
 import type { Acteur } from "../../middleware/auth.js";
 
 const INCLUDE_EMBARQUEMENT = {
   fonction: true,
   verifiedBy: { select: { firstName: true, lastName: true } },
+  // Historique des soumissions et des décisions, du plus ancien au plus
+  // récent : l'écran du marin peut ainsi montrer le motif d'un rejet
+  // précédent à côté de la preuve qu'il vient de redéposer.
+  events: { orderBy: { createdAt: "asc" as const } },
 } as const;
+
+// Consigner un événement d'embarquement. Appelé à chaque changement de
+// statut : l'historique se construit au fil de l'eau, il n'est jamais
+// reconstitué après coup. Un échec d'écriture ne doit pas annuler l'action
+// métier, il est donc avalé et journalisé.
+const consignerEvenement = async (parametres: {
+  embarkationId: string;
+  status: string;
+  reason?: string | null;
+  acteur?: Acteur;
+}): Promise<void> => {
+  try {
+    await prisma.embarkationEvent.create({
+      data: {
+        embarkationId: parametres.embarkationId,
+        status: parametres.status,
+        reason: parametres.reason ?? null,
+        actorType: parametres.acteur?.type ?? "MARIN",
+        actorId: parametres.acteur?.id ?? null,
+        actorLabel: parametres.acteur?.label ?? null,
+      },
+    });
+  } catch (err) {
+    logger.warn({ err, embarkationId: parametres.embarkationId }, "Evenement d'embarquement non consigne");
+  }
+};
 
 // Totaux du dossier de service en mer, exposés au marin et au moteur de
 // conformité. Les deux lisent la même fonction, donc le même chiffre.
@@ -88,6 +120,11 @@ export const declarerEmbarquement = async (
     include: INCLUDE_EMBARQUEMENT,
   });
 
+  await consignerEvenement({
+    embarkationId: embarquement.id,
+    status: EMBARKATION_STATUS.DECLARED,
+  });
+
   return embarquement;
 };
 
@@ -113,6 +150,13 @@ export const soumettreEmbarquement = async (
     where: { id: embarquementId },
     data: { proofUrl: stocke.url, status: EMBARKATION_STATUS.SUBMITTED, rejectReason: null },
     include: INCLUDE_EMBARQUEMENT,
+  });
+
+  // Une resoumission après rejet produit un nouvel événement : le rejet
+  // précédent et son motif restent lisibles dans l'historique.
+  await consignerEvenement({
+    embarkationId: embarquementId,
+    status: EMBARKATION_STATUS.SUBMITTED,
   });
 
   await logAction({
@@ -183,6 +227,20 @@ export const verifierEmbarquement = async (embarquementId: string, acteur: Acteu
     metadata: { navire: embarquement.vesselName, jours: actualise.days },
   });
 
+  await consignerEvenement({
+    embarkationId: embarquementId,
+    status: EMBARKATION_STATUS.VERIFIED,
+    acteur,
+  });
+
+  // Le marin doit savoir que ses jours sont désormais comptabilisables :
+  // c'est la donnée qui conditionne ses demandes de renouvellement.
+  await notifierMarin({
+    marinId: embarquement.marinId,
+    evenement: NOTIFICATION_EVENT.REQUEST_STATUS_CHANGED,
+    contenu: `PGMI : votre embarquement sur ${embarquement.vesselName} est vérifié. ${actualise.days} jours comptabilisés.`,
+  });
+
   return actualise;
 };
 
@@ -205,6 +263,22 @@ export const rejeterEmbarquement = async (
     targetType: "Embarkation",
     targetId: embarquementId,
     metadata: { motif },
+  });
+
+  await consignerEvenement({
+    embarkationId: embarquementId,
+    status: EMBARKATION_STATUS.REJECTED,
+    reason: motif,
+    acteur,
+  });
+
+  // Remarque PGMI-12 : le motif était enregistré en base sans que personne
+  // ne le transmette. Le marin apprenait le rejet en ouvrant l'application,
+  // sans savoir quoi corriger.
+  await notifierMarin({
+    marinId: actualise.marinId,
+    evenement: NOTIFICATION_EVENT.REQUEST_STATUS_CHANGED,
+    contenu: `PGMI : votre preuve d'embarquement sur ${actualise.vesselName} n'a pas été acceptée. Motif : ${motif}`,
   });
 
   return actualise;

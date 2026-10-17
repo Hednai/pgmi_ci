@@ -22,6 +22,8 @@ import {
   ValidationError,
 } from "../../utils/errors.js";
 import { lirePagination, construireReponse } from "../../utils/pagination.js";
+import { filtrePortee } from "../../domain/permissions.js";
+import { storage } from "../../services/storage/storage.service.js";
 import { joursAvantExpiration } from "../../utils/dates.js";
 import { EXPIRY_WARNING_WINDOW_DAYS } from "../../domain/rules.js";
 import type { Acteur } from "../../middleware/auth.js";
@@ -112,10 +114,99 @@ export const majProfil = async (marinId: string, donnees: MajProfil) => {
       region: donnees.region ?? undefined,
       shipCategory: donnees.shipCategory ?? undefined,
       fonctionId: donnees.fonctionId ?? undefined,
-      photoUrl: donnees.photoUrl ?? undefined,
     },
     include: INCLUDE_MARIN,
   });
+};
+
+// ---- Photo de profil (remarque PGMI-02) ----
+
+// Types acceptés pour une photo. Le PDF est exclu : une photo d'identité
+// doit s'afficher directement sur la page publique de vérification.
+const MIME_PHOTO = ["image/jpeg", "image/png", "image/webp"];
+
+// Déposer ou remplacer la photo. L'ancienne est supprimée du stockage après
+// l'écriture de la nouvelle : si l'enregistrement échoue, le marin garde
+// une photo valide plutôt que de se retrouver sans rien.
+export const majPhotoProfil = async (
+  marinId: string,
+  fichier: { nom: string; mimeType: string; contenuBase64: string },
+) => {
+  if (!MIME_PHOTO.includes(fichier.mimeType)) {
+    throw new ValidationError("Photo acceptée aux formats JPG, PNG ou WebP.");
+  }
+
+  const marin = await prisma.marin.findUnique({
+    where: { id: marinId },
+    select: { photoUrl: true },
+  });
+  if (!marin) throw new NotFoundError("Dossier marin introuvable.");
+
+  // La photo est lisible par la page publique de vérification : elle est
+  // donc stockée dans l'espace public, à l'inverse des certificats.
+  const stocke = await storage.enregistrer(`public/marins/${marinId}`, fichier);
+
+  let actualise;
+  try {
+    actualise = await prisma.marin.update({
+      where: { id: marinId },
+      data: { photoUrl: stocke.url },
+      include: INCLUDE_MARIN,
+    });
+  } catch (err) {
+    // L'écriture en base a échoué : le fichier qui vient d'être déposé ne sera
+    // référencé par personne, il est retiré du stockage avant de propager
+    // l'erreur. Le marin conserve sa photo précédente.
+    await storage.supprimer(stocke.url);
+    throw err;
+  }
+
+  // L'ancienne photo n'est retirée qu'une fois la nouvelle enregistrée en base
+  if (marin.photoUrl) {
+    await storage.supprimer(marin.photoUrl);
+  }
+
+  await logAction({
+    actorType: "MARIN",
+    actorId: marinId,
+    action: AUDIT_ACTION.MARIN_PHOTO_UPDATE,
+    targetType: "Marin",
+    targetId: marinId,
+    metadata: { remplacement: Boolean(marin.photoUrl), taille: stocke.taille },
+  });
+
+  return actualise;
+};
+
+// Supprimer la photo de profil
+export const supprimerPhotoProfil = async (marinId: string) => {
+  const marin = await prisma.marin.findUnique({
+    where: { id: marinId },
+    select: { photoUrl: true },
+  });
+  if (!marin) throw new NotFoundError("Dossier marin introuvable.");
+
+  if (!marin.photoUrl) {
+    throw new BusinessRuleError("Aucune photo à supprimer.");
+  }
+
+  const actualise = await prisma.marin.update({
+    where: { id: marinId },
+    data: { photoUrl: null },
+    include: INCLUDE_MARIN,
+  });
+
+  await storage.supprimer(marin.photoUrl);
+
+  await logAction({
+    actorType: "MARIN",
+    actorId: marinId,
+    action: AUDIT_ACTION.MARIN_PHOTO_DELETE,
+    targetType: "Marin",
+    targetId: marinId,
+  });
+
+  return actualise;
 };
 
 // Le SMS n'est pas modifiable : il reste vrai en base quoi qu'envoie le client (R17)
@@ -147,11 +238,19 @@ export const majPreferences = async (
 
 // ---- Guichet DGAM ----
 
-export const listerMarins = async (filtres: Record<string, unknown>) => {
+export const listerMarins = async (
+  filtres: Record<string, unknown>,
+  acteur: Acteur,
+) => {
   const pagination = lirePagination(filtres);
   const recherche = typeof filtres.q === "string" ? filtres.q.trim() : "";
 
+  // Portée des données : un rôle national ne restreint rien, tout autre rôle
+  // est borné aux dossiers rattachés à son autorité. Le filtre est appliqué
+  // dans la requête SQL, pas après coup : aucune ligne hors périmètre ne
+  // quitte la base, et la pagination reste juste.
   const where = {
+    ...filtrePortee(acteur.role, acteur.authorityId ?? ""),
     ...(filtres.status ? { status: String(filtres.status) } : {}),
     ...(filtres.source ? { registrationSource: String(filtres.source) } : {}),
     ...(recherche

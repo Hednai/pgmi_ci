@@ -78,9 +78,16 @@ export const OTP_LENGTH = 6;
 export const ACCESS_TOKEN_TTL = "15m";
 export const REFRESH_TOKEN_TTL = "7d";
 
-// Limites de taille des requêtes (ENF-015)
-export const MAX_JSON_BODY = "10kb";
+// Limites de taille des requêtes (ENF-015).
+// Le plafond général vit dans config/constants.ts, couche HTTP ; seules les
+// limites qui découlent d'une règle métier sont déclarées ici.
 export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 
-// Taille d'un morceau d'upload, alignée sur le client (ENF-009)
-export const UPLOAD_CHUNK_BYTES = 256 * 1024;
+// Nombre maximum de pièces jointes par demande
+export const MAX_ATTACHMENTS_PER_REQUEST = 6;
+
+// Plafond JSON pour les routes transportant un fichier base64 (ENF-015)
+export const MAX_JSON_BODY_UPLOAD = `${Math.ceil(MAX_UPLOAD_BYTES * 1.37)}b`;
+
+// Plafond JSON pour les routes de demande avec pièces jointes multiples
+export const MAX_JSON_BODY_DEMANDE = `${Math.ceil(MAX_UPLOAD_BYTES * 1.37 * MAX_ATTACHMENTS_PER_REQUEST)}b`;

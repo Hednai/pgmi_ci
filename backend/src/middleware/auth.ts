@@ -113,6 +113,23 @@ export const requireMarin = asyncHandler(
   },
 );
 
+// Exiger un appelant authentifié, marin ou agent indifféremment.
+// La garde lit le type porté par le jeton puis délègue à la garde spécialisée :
+// aucun contrôle n'est réécrit, et la révocation de session agent comme la
+// suspension d'un dossier marin restent appliquées.
+export const requireAuthenticated = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const jeton = lireJeton(req);
+    if (!jeton) throw new UnauthorizedError();
+
+    const charge = verifyAccessToken(jeton);
+    if (!charge) throw new UnauthorizedError();
+
+    const garde = charge.type === "AGENT" ? requireAgent : requireMarin;
+    return garde(req, res, next);
+  },
+);
+
 // Exiger un marin dont le dossier est activé (R1).
 // À placer après requireMarin sur toute route qui produit un acte officiel.
 export const requireActiveMarin = asyncHandler(

@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { REQUEST_TYPE, REQUEST_STATUS, MOBILE_MONEY_OPERATORS, PAYMENT_CHANNEL } from "../../domain/status.js";
 import { fichierSchema } from "../documents/documents.validation.js";
+import { MAX_ATTACHMENTS_PER_REQUEST } from "../../domain/rules.js";
 
 // Ni le montant ni le statut ne figurent ici : le montant vient du barème,
 // le statut du moteur de workflow.
@@ -18,7 +19,13 @@ export const soumissionDemandeSchema = z.object({
   ]),
   sourceDocumentId: z.string().trim().min(1).optional(),
   reason: z.string().trim().max(500).optional(),
-  attachments: z.array(fichierSchema).max(6, "Six pièces jointes au maximum").optional(),
+  attachments: z
+    .array(fichierSchema)
+    .max(
+      MAX_ATTACHMENTS_PER_REQUEST,
+      `${MAX_ATTACHMENTS_PER_REQUEST} pièces jointes au maximum`,
+    )
+    .optional(),
 });
 
 // Module D : l'ARSTM ouvre une demande au nom d'un élève.

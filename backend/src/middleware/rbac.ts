@@ -3,11 +3,13 @@
 // Contrôle d'accès par rôle (ENF-007).
 //
 // Les listes de rôles viennent de domain/roles.ts : une route déclare
-// l'intention métier ("qui décide ?"), pas une énumération recopiée.
+// l'intention métier (\"qui décide ?\"), pas une énumération recopiée.
 // ============================================
 import type { Request, Response, NextFunction } from "express";
 import type { AgentRole } from "../domain/roles.js";
 import { AUTHORITY_LEVEL } from "../domain/roles.js";
+import { aPermission } from "../domain/permissions.js";
+import type { Permission } from "../domain/permissions.js";
 import { ForbiddenError, UnauthorizedError } from "../utils/errors.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { prisma } from "../lib/prisma.js";
@@ -22,6 +24,24 @@ export const requireRole =
     }
     if (!acteur.role || !roles.includes(acteur.role)) {
       return next(new ForbiddenError("Votre rôle ne permet pas cette action."));
+    }
+    return next();
+  };
+
+// Restreindre une route à une habilitation précise.
+// Le contrôle est posé sur la route elle-même : masquer une entrée de menu
+// côté client ne protège rien, l'URL reste saisissable à la main.
+export const requirePermission =
+  (permission: Permission) =>
+  (req: Request, _res: Response, next: NextFunction) => {
+    const acteur = req.acteur;
+    if (!acteur || acteur.type !== "AGENT") {
+      return next(new UnauthorizedError());
+    }
+    if (!aPermission(acteur.role, permission)) {
+      return next(
+        new ForbiddenError("Votre habilitation ne permet pas cette action."),
+      );
     }
     return next();
   };
