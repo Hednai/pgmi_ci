@@ -31,4 +31,15 @@ describe("R8, instruction et règlement des frais", () => {
   it("traite un montant négatif comme une absence de frais", () => {
     expect(instructionAutorisee({ feeAmount: -1, paiementConfirme: false })).toBe(true);
   });
+
+  // Donnée corrompue : la règle refuse. Un montant illisible ne doit jamais
+  // ouvrir un droit, il doit faire remonter le dossier à un humain.
+  // C'est l'inverse du montant nul, qui vaut exonération.
+  it("refuse l'instruction sur un montant non exploitable", () => {
+    expect(instructionAutorisee({ feeAmount: Number.NaN, paiementConfirme: true })).toBe(false);
+    expect(instructionAutorisee({ feeAmount: Number.NaN, paiementConfirme: false })).toBe(false);
+    expect(instructionAutorisee({ feeAmount: Number.POSITIVE_INFINITY, paiementConfirme: true })).toBe(
+      false,
+    );
+  });
 });

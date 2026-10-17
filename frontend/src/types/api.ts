@@ -136,6 +136,29 @@ export interface DocumentMaritime {
   marin?: MarinResume;
 }
 
+// Pièce justificative attendue pour un embarquement. Le référentiel vient
+// du serveur (GET /api/sea-service/pieces-attendues) : l'écran n'écrit ni
+// les libellés ni le caractère obligatoire des pièces.
+export interface PieceAttendue {
+  code: string;
+  libelle: string;
+  precision: string;
+  obligatoire: boolean;
+  // Plusieurs fichiers admis pour cette pièce (livret de plusieurs pages)
+  multiple: boolean;
+}
+
+// Pièce effectivement déposée par le marin
+export interface PieceDeposee {
+  id: string;
+  kind: string;               // Code du référentiel PieceAttendue
+  fileUrl: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  uploadedAt: string;
+}
+
 // Période d'embarquement déclarée par un marin
 export interface Embarquement {
   id: string;
@@ -147,7 +170,10 @@ export interface Embarquement {
   endDate: string;
   days: number;               // Durée calculée en jours
   status: string;             // DECLARED, SUBMITTED, VERIFIED, REJECTED
-  proofUrl: string | null;    // Preuve d'embarquement déposée
+  // Première pièce historique, antérieure à la gestion multi-pièces.
+  // Conservée en lecture : les embarquements déjà déposés restent valides.
+  proofUrl: string | null;
+  proofs?: PieceDeposee[];
   rejectReason: string | null;
   fonction: Fonction | null;
   marin?: MarinResume;

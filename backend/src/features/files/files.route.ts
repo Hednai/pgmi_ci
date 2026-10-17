@@ -15,6 +15,9 @@ import { requireAuthenticated } from "../../middleware/auth.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { ForbiddenError, NotFoundError } from "../../utils/errors.js";
 import { aPermission, PERMISSION } from "../../domain/permissions.js";
+import { logAction, AUDIT_ACTION } from "../../utils/auditLog.js";
+import { storage } from "../../services/storage/storage.service.js";
+import { STOCKAGE } from "../../config/constants.js";
 import type { Acteur } from "../../middleware/auth.js";
 
 const filesRouter = Router();
@@ -83,18 +86,59 @@ filesRouter.get(
       throw new ForbiddenError("Chemin de fichier invalide.");
     }
 
+    // Ordre imposé, et il ne doit jamais changer :
+    //   1. contrôle d'habilitation, qui peut refuser ;
+    //   2. journalisation, qui doit précéder toute délivrance ;
+    //   3. délivrance du contenu ou de l'URL signée.
+    // Journaliser après la délivrance laisserait une fenêtre où un fichier
+    // est servi sans trace si le processus tombe entre les deux.
     await autoriserLecture(acteur, brut);
 
+    // R14 : la consultation d'une pièce d'identité est une action sensible.
+    // Sans cette trace, un agent habilité pouvait ouvrir le livret maritime
+    // de n'importe quel marin du registre sans laisser d'empreinte.
+    //
+    // Le journal ne porte que le chemin de stockage et le propriétaire : ni
+    // URL signée, ni jeton, ni contenu. Une trace d'audit ne doit jamais
+    // devenir elle-même un moyen d'accès.
+    await logAction({
+      actorType: acteur.type,
+      actorId: acteur.id,
+      actorLabel: acteur.label,
+      action: AUDIT_ACTION.FILE_READ,
+      targetType: "Fichier",
+      targetId: brut,
+      metadata: { proprietaire: await proprietaireDuChemin(brut) },
+      req,
+    });
+
+    // Les pièces jointes ne sont jamais mises en cache par un intermédiaire :
+    // ce sont des pièces d'identité.
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    // L'URL signée ne doit pas fuiter vers un site tiers via l'en-tête
+    // Referer si le document contient un lien.
+    res.setHeader("Referrer-Policy", "no-referrer");
+
+    // Stockage distant : le serveur ne relaie pas les octets, il redirige
+    // vers une URL signée de courte durée. La signature n'est demandée
+    // qu'ici, après le contrôle et la trace.
+    const urlSignee = storage.urlDeLecture
+      ? await storage.urlDeLecture(`${STOCKAGE.PREFIXE_URL}${brut}`)
+      : null;
+
+    if (urlSignee) {
+      res.redirect(302, urlSignee);
+      return;
+    }
+
+    // Stockage local : le fichier est lu sur le disque du serveur.
     try {
       await stat(absolu);
     } catch {
       throw new NotFoundError("Document introuvable.");
     }
 
-    // Les pièces jointes ne sont jamais mises en cache par un intermédiaire :
-    // ce sont des pièces d'identité.
-    res.setHeader("Cache-Control", "private, no-store");
-    res.setHeader("X-Content-Type-Options", "nosniff");
     createReadStream(absolu).pipe(res);
   }),
 );

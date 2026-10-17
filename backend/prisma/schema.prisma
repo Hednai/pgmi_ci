@@ -277,9 +277,67 @@ model Embarkation {
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
   events       EmbarkationEvent[]
+  proofs       EmbarkationProof[]
 
   @@index([marinId])
   @@index([status])
+}
+
+// Fichiers dont la suppression du stockage reste à confirmer.
+//
+// La base de données et le stockage objet ne partagent pas de transaction.
+// Trois scénarios laissaient sinon des traces : un fichier déposé alors que
+// l'écriture en base échoue, une ligne supprimée alors que le stockage
+// refuse, un arrêt du serveur entre les deux. Le second est le plus grave
+// pour un registre d'État : une pièce d'identité qui survit dans le bucket
+// alors que l'application la croit effacée.
+//
+// L'intention de suppression est donc écrite en base, dans la même
+// transaction que le changement métier, et un travail périodique la draine.
+// C'est le motif « outbox » : la base fait foi, le stockage rattrape.
+model PendingDeletion {
+  id            String    @id @default(cuid())
+  // URL de la pièce, au format /uploads/<chemin>
+  fileUrl       String    @unique
+  // Origine de la demande, pour l'audit : remplacement, retrait, compensation
+  reason        String
+  attempts      Int       @default(0)
+  lastError     String?
+  // Report après échec, pour espacer les tentatives
+  nextAttemptAt DateTime  @default(now())
+  // Renseigné quand le nombre de tentatives est épuisé : la ligne reste en
+  // base pour qu'un humain la traite, elle n'est jamais supprimée en silence
+  abandonedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([nextAttemptAt])
+  @@index([abandonedAt])
+}
+
+// Pièces justificatives d'un embarquement.
+//
+// Un seul champ proofUrl ne suffisait pas : la DGAM attend plusieurs pièces
+// distinctes (page du livret maritime portant les mouvements signés,
+// document de bord attestant le débarquement, éventuels justificatifs
+// complémentaires). Les empiler dans un seul fichier empêchait l'agent de
+// dire laquelle manque.
+//
+// Le type de pièce est une chaîne et non une énumération Prisma : le
+// référentiel vit dans domain/piecesServiceMer.ts, et une évolution du
+// catalogue ne doit pas imposer une migration de base.
+model EmbarkationProof {
+  id            String      @id @default(cuid())
+  embarkationId String
+  embarkation   Embarkation @relation(fields: [embarkationId], references: [id], onDelete: Cascade)
+  // Code de pièce du référentiel : LIVRET_MOUVEMENTS, BON_DEBARQUEMENT...
+  kind          String
+  fileUrl       String
+  fileName      String
+  mimeType      String
+  size          Int
+  uploadedAt    DateTime    @default(now())
+
+  @@index([embarkationId])
 }
 
 // Historique des soumissions et des décisions sur un embarquement

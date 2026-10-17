@@ -49,6 +49,15 @@ export class BusinessRuleError extends AppError {
   }
 }
 
+// Dépendance externe indisponible : stockage, passerelle de paiement, SMS.
+// Distinguée de ValidationError pour que le client ne lise pas « fichier
+// invalide » quand c'est le fournisseur qui est en panne.
+export class ServiceUnavailableError extends AppError {
+  constructor(message = "Service temporairement indisponible. Réessayez dans un instant.") {
+    super(message, 503);
+  }
+}
+
 export class RateLimitError extends AppError {
   constructor(message = "Trop de requêtes. Réessayez plus tard.") {
     super(message, 429);

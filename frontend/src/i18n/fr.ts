@@ -14,6 +14,7 @@ export const fr = {
     autorite: "Direction Générale des Affaires Maritimes et Portuaires",
     republique: "République de Côte d'Ivoire",
     chargement: "Chargement…",
+    retirer: "Retirer",
     enregistrer: "Enregistrer",
     annuler: "Annuler",
     continuer: "Continuer",
@@ -58,6 +59,15 @@ export const fr = {
     prefixePays: "+225",
     expireDans: "Le code expire dans",
     renvoyerWhatsapp: "Renvoyer par WhatsApp",
+  },
+
+  // Filet d'erreur de rendu
+  erreur: {
+    titre: "Un incident est survenu",
+    explication:
+      "L'écran n'a pas pu s'afficher. Rechargez la page, puis vérifiez l'état de votre dossier avant de reprendre votre saisie.",
+    recharger: "Recharger la page",
+    detailTechnique: "Détail technique",
   },
 
   demonstration: {
@@ -145,6 +155,8 @@ export const fr = {
     qrInstruction:
       "Présentez ce code à un inspecteur. Il affiche l'authenticité du document sans consulter le dossier complet.",
     codeVerification: "Code de vérification",
+    qrIndisponible:
+      "La vignette du QR code n'a pas pu être générée. Le code ci-dessous reste valable : il se saisit directement sur la page publique de vérification.",
     filtreTous: "Tous",
     filtreStcw: "STCW",
     filtreMedical: "Médical",
@@ -182,6 +194,23 @@ export const fr = {
     joindrePreuve: "Joindre la preuve",
     preuveAide:
       "Attestation d'armateur ou page du livret. Sans preuve, les jours ne sont pas comptabilisés.",
+    // Dépôt des pièces justificatives. Les libellés des pièces elles-mêmes
+    // ne sont pas ici : ils viennent du référentiel servi par l'API, afin
+    // que l'écran et le contrôle serveur ne puissent pas diverger.
+    justificatifs: {
+      titre: "Pièces justificatives",
+      note: "La DGAM vérifie vos jours de mer sur pièces. Déposez au minimum les deux documents obligatoires ci-dessous, lisibles et complets. Tant qu'une pièce obligatoire manque, le dossier ne peut pas être soumis.",
+      // Les valeurs sont injectées depuis les contraintes servies par l'API :
+      // les formats et la taille ne sont jamais écrits dans le texte.
+      contraintes: "Formats acceptés : {formats}. Taille maximale par fichier : {taille}.",
+      referentielIndisponible:
+        "La liste des pièces attendues n'a pas pu être chargée. Rechargez la page avant de déposer vos justificatifs.",
+      requis: "(obligatoire)",
+      facultatif: "(facultatif)",
+      remplacement: "Déposer un nouveau fichier remplace le précédent.",
+      incomplet: "Pièces obligatoires manquantes :",
+      soumettre: "Soumettre le dossier à la DGAM",
+    },
     aucun: "Aucun embarquement déclaré.",
     embarquements: "Embarquements",
     periode: "Période",
