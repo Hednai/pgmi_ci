@@ -4,6 +4,7 @@
 // ============================================
 import { z } from "zod";
 import { EMBARKATION_STATUS } from "../../domain/status.js";
+import { CODES_PIECES_SERVICE_MER } from "../../domain/piecesServiceMer.js";
 
 // Le champ days est absent : il est calculé côté serveur à partir des dates.
 // Laisser le client fournir un nombre de jours reviendrait à lui laisser
@@ -32,7 +33,13 @@ export const declarationEmbarquementSchema = z
     path: ["startDate"],
   });
 
-export const soumissionPreuveSchema = z.object({
+// Dépôt d'une pièce justificative. Le type de pièce est contraint au
+// référentiel du domaine : la liste n'est pas recopiée ici, elle en est
+// dérivée, et ajouter une pièce au catalogue suffit.
+export const depotPieceSchema = z.object({
+  kind: z.enum(CODES_PIECES_SERVICE_MER as [string, ...string[]], {
+    errorMap: () => ({ message: "Type de pièce justificative inconnu." }),
+  }),
   fichier: z.object({
     nom: z.string().trim().min(1).max(160),
     mimeType: z.string().trim().min(3).max(80),

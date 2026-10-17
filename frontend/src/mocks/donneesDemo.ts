@@ -22,6 +22,7 @@ import type {
   Fonction,
   Marin,
   MarinResume,
+  PieceAttendue,
   RapportConformite,
   Referentiels,
   ResultatVerification,
@@ -359,6 +360,46 @@ export const SERVICE_MER_MARIN: DossierServiceMer = {
   embarquements: EMBARQUEMENTS_MARIN,
   totaux: { joursVerifies: 288, joursEnAttente: 182, embarquements: 3 },
 };
+
+// Contraintes de dépôt, miroir de GET /api/referentiels/contraintes-depot.
+// Les mêmes valeurs que le serveur applique : formats dérivés des signatures
+// reconnues, plafond de 2 Mo.
+export const CONTRAINTES_DEPOT_DEMO = {
+  typesAcceptes: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
+  formats: "JPG, PNG, WEBP, PDF",
+  tailleMaxOctets: 2 * 1024 * 1024,
+};
+
+// Référentiel des pièces justificatives attendues pour un embarquement.
+// Miroir de backend/src/domain/piecesServiceMer.ts : en production, l'écran
+// lit ce référentiel depuis l'API, la démonstration le sert d'ici. Les deux
+// listes doivent rester identiques, un test le vérifie.
+export const PIECES_SERVICE_MER_DEMO: PieceAttendue[] = [
+  {
+    code: "LIVRET_MOUVEMENTS",
+    libelle: "Page du livret maritime portant les mouvements",
+    precision:
+      "La page doit montrer l'embarquement et le débarquement, signés et revêtus du cachet du bord.",
+    obligatoire: true,
+    multiple: true,
+  },
+  {
+    code: "BON_DEBARQUEMENT",
+    libelle: "Document de bord justifiant le débarquement",
+    precision:
+      "Bon de débarquement, attestation de l'armateur ou extrait du rôle d'équipage portant vos dates.",
+    obligatoire: true,
+    multiple: false,
+  },
+  {
+    code: "AUTRE_JUSTIFICATIF",
+    libelle: "Autre justificatif",
+    precision:
+      "Contrat d'engagement, certificat de service ou toute pièce complétant votre dossier.",
+    obligatoire: false,
+    multiple: true,
+  },
+];
 
 // ============================================
 // Demandes du marin

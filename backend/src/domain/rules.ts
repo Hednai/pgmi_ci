@@ -30,6 +30,38 @@ export const RULES = {
 } as const;
 export type RuleId = keyof typeof RULES;
 
+// ---- Gardes de règle, utilisables sans base de données ----
+
+// Paramètres lus par la garde R8. Le type est exporté : les tests et les
+// services parlent du même contrat, aucun n'en redéclare une copie.
+export interface ContexteInstruction {
+  // Montant des frais dus, tel qu'enregistré sur la demande
+  feeAmount: number;
+  // Vrai si au moins un paiement de la demande porte le statut réglé
+  paiementConfirme: boolean;
+}
+
+// R8, « Un paiement doit être confirmé avant instruction ».
+// La règle vit ici et non dans le service : elle est ainsi testable seule,
+// et un seul endroit décide pour toutes les étapes du workflow.
+// Un montant nul ou négatif vaut exonération : l'absence de frais ne doit
+// jamais bloquer un dossier.
+export const instructionAutorisee = (contexte: ContexteInstruction): boolean => {
+  // Montant non exploitable (NaN, Infinity) : la règle refuse. Une donnée
+  // corrompue ne doit jamais ouvrir un droit, elle doit faire remonter le
+  // dossier à un humain.
+  if (!Number.isFinite(contexte.feeAmount)) {
+    return false;
+  }
+
+  // Montant nul ou négatif : démarche exonérée, aucun paiement attendu.
+  if (contexte.feeAmount <= 0) {
+    return true;
+  }
+
+  return contexte.paiementConfirme;
+};
+
 // ---- Paramètres dérivés des règles ----
 
 // Quorum par défaut d'une session de formation (R15).

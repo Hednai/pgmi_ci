@@ -12,6 +12,8 @@ import { requireAgent } from "../../middleware/auth.js";
 import { requireRole } from "../../middleware/rbac.js";
 import { validateBody } from "../../middleware/validate.js";
 import { REFERENTIAL_ADMIN_ROLES } from "../../domain/roles.js";
+import { MAX_UPLOAD_BYTES } from "../../domain/rules.js";
+import { FORMATS_LIBELLE, MIME_AUTORISES } from "../../services/storage/signature.js";
 import {
   fonctionSchema,
   certificateTypeSchema,
@@ -43,6 +45,30 @@ referentielsRouter.get(
     // Référentiel peu mouvant : cache navigateur de cinq minutes
     res.setHeader("Cache-Control", "public, max-age=300");
     res.status(200).json({ success: true, data: donnees });
+  }),
+);
+
+// GET /api/referentiels/contraintes-depot
+// Contraintes appliquées aux pièces jointes, servies au client pour qu'il
+// les annonce avant l'envoi. Le marin apprenait la limite de taille au
+// moment du rejet, après avoir attendu la montée d'un fichier sur une
+// connexion mobile.
+//
+// Le serveur reste la seule autorité : ces valeurs informent, elles ne
+// dispensent d'aucun contrôle. Elles sont dérivées des mêmes constantes que
+// la validation, donc elles ne peuvent pas en diverger.
+referentielsRouter.get(
+  "/contraintes-depot",
+  asyncHandler(async (_req: Request, res: Response) => {
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.status(200).json({
+      success: true,
+      data: {
+        typesAcceptes: MIME_AUTORISES,
+        formats: FORMATS_LIBELLE,
+        tailleMaxOctets: MAX_UPLOAD_BYTES,
+      },
+    });
   }),
 );
 

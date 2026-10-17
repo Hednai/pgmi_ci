@@ -9,14 +9,17 @@ import { validateBody, validateQuery } from "../../middleware/validate.js";
 import { DGAM_DECISION_ROLES } from "../../domain/roles.js";
 import {
   declarationEmbarquementSchema,
-  soumissionPreuveSchema,
+  depotPieceSchema,
   rejetEmbarquementSchema,
   filtreEmbarquementsSchema,
 } from "./embarkations.validation.js";
 import {
   monDossier,
   declarer,
+  deposerPiece,
+  retirerPiece,
   soumettrePreuve,
+  piecesAttendues,
   aVerifier,
   dossierDuMarin,
   verifier,
@@ -34,13 +37,27 @@ seaServiceRouter.post(
   validateBody(declarationEmbarquementSchema),
   declarer,
 );
+
+// Référentiel des pièces attendues. Lecture seule, ouverte à tout marin
+// authentifié : c'est la source unique de la note affichée avant dépôt.
+seaServiceRouter.get("/pieces-attendues", requireMarin, piecesAttendues);
+
+// Dépôt et retrait d'une pièce, puis soumission du dossier. Les trois
+// étapes sont distinctes : le marin constitue son dossier, puis l'envoie.
 seaServiceRouter.post(
-  "/me/:id/preuve",
+  "/me/:id/pieces",
   requireMarin,
   requireActiveMarin,
-  validateBody(soumissionPreuveSchema),
-  soumettrePreuve,
+  validateBody(depotPieceSchema),
+  deposerPiece,
 );
+seaServiceRouter.delete(
+  "/me/:id/pieces/:pieceId",
+  requireMarin,
+  requireActiveMarin,
+  retirerPiece,
+);
+seaServiceRouter.post("/me/:id/soumission", requireMarin, requireActiveMarin, soumettrePreuve);
 
 // ---- Agents DGAM ----
 seaServiceRouter.get(

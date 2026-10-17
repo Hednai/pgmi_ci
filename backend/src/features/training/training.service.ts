@@ -32,6 +32,8 @@ import {
   notifierMarin,
   NOTIFICATION_EVENT,
 } from "../../services/notification/notification.service.js";
+import { diffuser } from "../../services/realtime/realtime.service.js";
+import { EVENEMENT } from "../../domain/evenements.js";
 import type { Acteur } from "../../middleware/auth.js";
 
 const INCLUDE_SESSION = {
@@ -168,6 +170,18 @@ export const creerSession = async (
     metadata: { module: type.code, quorum: donnees.minQuorum },
   });
 
+  // Une nouvelle session ouverte apparaît sur l'écran des marins sans
+  // rechargement : ils voient l'offre de formation au moment où elle existe.
+  diffuser({
+    evenement: EVENEMENT.FORMATION_SESSION_OUVERTE,
+    donnees: {
+      sessionId: session.id,
+      module: type.code,
+      label: type.label,
+      statut: session.status,
+    },
+  });
+
   return session;
 };
 
@@ -225,6 +239,17 @@ export const planifierSession = async (
     targetType: "TrainingSession",
     targetId: sessionId,
     metadata: { debut: donnees.startDate, lieu: donnees.location, inscrits: confirmes },
+  });
+
+  // Les marins inscrits voient leur écran se mettre à jour sans rechargement.
+  diffuser({
+    evenement: EVENEMENT.FORMATION_SESSION_STATUT,
+    donnees: {
+      sessionId,
+      statut: SESSION_STATUS.SCHEDULED,
+      debut: donnees.startDate,
+      lieu: donnees.location,
+    },
   });
 
   // Notification à tous les inscrits, sur les trois canaux
@@ -526,6 +551,16 @@ export const enregistrerResultats = async (
       module: session.certificateType.code,
       reussites: resultats.filter((ligne) => ligne.resultat === "PASSED").length,
       total: resultats.length,
+    },
+  });
+
+  // Le statut de la session se met à jour sur les écrans ouverts.
+  diffuser({
+    evenement: EVENEMENT.FORMATION_SESSION_STATUT,
+    donnees: {
+      sessionId,
+      statut: SESSION_STATUS.COMPLETED,
+      module: session.certificateType.code,
     },
   });
 

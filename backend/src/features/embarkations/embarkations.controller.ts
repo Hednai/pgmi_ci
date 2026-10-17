@@ -5,9 +5,12 @@
 import type { Request, Response } from "express";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { UnauthorizedError } from "../../utils/errors.js";
+import { PIECES_SERVICE_MER } from "../../domain/piecesServiceMer.js";
 import {
   listerEmbarquements,
   declarerEmbarquement,
+  deposerPieceEmbarquement,
+  retirerPieceEmbarquement,
   soumettreEmbarquement,
   listerASoumettre,
   verifierEmbarquement,
@@ -31,14 +34,41 @@ export const declarer = asyncHandler(async (req: Request, res: Response) => {
   res.status(201).json({ success: true, data: embarquement });
 });
 
-// POST /api/sea-service/me/:id/preuve
+// POST /api/sea-service/me/:id/pieces
+export const deposerPiece = asyncHandler(async (req: Request, res: Response) => {
+  const embarquement = await deposerPieceEmbarquement(
+    String(req.params.id),
+    acteurCourant(req).id,
+    String(req.body.kind),
+    req.body.fichier,
+  );
+  res.status(201).json({ success: true, data: embarquement });
+});
+
+// DELETE /api/sea-service/me/:id/pieces/:pieceId
+export const retirerPiece = asyncHandler(async (req: Request, res: Response) => {
+  const embarquement = await retirerPieceEmbarquement(
+    String(req.params.id),
+    String(req.params.pieceId),
+    acteurCourant(req).id,
+  );
+  res.status(200).json({ success: true, data: embarquement });
+});
+
+// POST /api/sea-service/me/:id/soumission
 export const soumettrePreuve = asyncHandler(async (req: Request, res: Response) => {
   const embarquement = await soumettreEmbarquement(
     String(req.params.id),
     acteurCourant(req).id,
-    req.body.fichier,
   );
   res.status(200).json({ success: true, data: embarquement });
+});
+
+// GET /api/sea-service/pieces-attendues
+// Le référentiel est servi par l'API : l'écran ne recopie ni les libellés
+// ni le caractère obligatoire des pièces.
+export const piecesAttendues = asyncHandler(async (_req: Request, res: Response) => {
+  res.status(200).json({ success: true, data: PIECES_SERVICE_MER });
 });
 
 // GET /api/sea-service/a-verifier

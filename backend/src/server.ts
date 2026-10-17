@@ -8,6 +8,8 @@ import { env } from "./config/env.js";
 import { logger } from "./lib/logger.js";
 import { prisma } from "./lib/prisma.js";
 import { demarrerPlanificateur, arreterPlanificateur } from "./jobs/scheduler.js";
+import { fermerTousLesFlux } from "./services/realtime/sse.broadcaster.js";
+import { viderTickets } from "./services/realtime/ticket.service.js";
 
 const serveur = app.listen(env.PORT, () => {
   logger.info(
@@ -23,6 +25,13 @@ const serveur = app.listen(env.PORT, () => {
 const arreter = async (signal: string) => {
   logger.info({ signal }, "Arrêt du serveur demandé");
   arreterPlanificateur();
+
+  // Les flux temps réel sont fermés AVANT serveur.close(). Une connexion
+  // Server-Sent Events ne se termine jamais d'elle-même : close() l'aurait
+  // attendue jusqu'au filet de sécurité, qui tuait le processus en code 1 à
+  // chaque redéploiement de l'hébergeur.
+  fermerTousLesFlux();
+  viderTickets();
 
   serveur.close(async () => {
     await prisma.$disconnect();
