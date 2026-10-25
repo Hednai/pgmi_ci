@@ -21,6 +21,7 @@ import {
 import { MARIN_STATUS, REGISTRATION_SOURCE, OTP_PURPOSE } from "../../domain/status.js";
 import { AGENT_ROLE_LABELS } from "../../domain/roles.js";
 import type { AgentRole } from "../../domain/roles.js";
+import { permissionsDuRole } from "../../domain/permissions.js";
 import {
   UnauthorizedError,
   ValidationError,
@@ -315,6 +316,10 @@ export const connecterAgent = async (email: string, motDePasse: string) => {
       lastName: agent.lastName,
       role: agent.role,
       roleLabel: AGENT_ROLE_LABELS[agent.role as AgentRole] ?? agent.role,
+      // Habilitations resolues des la connexion : sans elles, le menu
+      // lateral de l'agent ne contient que le tableau de bord jusqu'au
+      // premier rechargement de page.
+      permissions: permissionsDuRole(agent.role),
       authority: {
         id: agent.authority.id,
         code: agent.authority.code,
