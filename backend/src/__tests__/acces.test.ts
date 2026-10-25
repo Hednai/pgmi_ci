@@ -9,7 +9,7 @@
 import { describe, it, expect } from "vitest";
 import express from "express";
 import request from "supertest";
-import "../../middleware/auth.js";
+import "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { PERMISSION } from "../domain/permissions.js";
 import { AGENT_ROLE } from "../domain/roles.js";
