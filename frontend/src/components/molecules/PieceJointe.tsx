@@ -82,7 +82,7 @@ export function PieceJointe({
             }}
             className="inline-flex items-center gap-1 text-[11px] font-medium text-ardoise hover:underline disabled:opacity-50"
           >
-            <Icone nom="televerser" taille={11} className="shrink-0" />
+            <Icone nom="telecharger" taille={11} className="shrink-0" />
             {t.pieces.telecharger}
           </button>
         )}
