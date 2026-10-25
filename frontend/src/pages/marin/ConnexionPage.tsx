@@ -4,7 +4,7 @@
 // Le parcours « Mot de passe oublié ? » envoie un code à usage unique,
 // le seul envoi qui subsiste depuis la bascule au mot de passe.
 // ============================================
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { t } from "../../i18n/index.js";
 import { api, ErreurApi } from "../../lib/apiClient.js";
