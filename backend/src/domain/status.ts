@@ -114,6 +114,16 @@ export const SUBMITTED_BY_ROLE = {
 export type SubmittedByRole =
   (typeof SUBMITTED_BY_ROLE)[keyof typeof SUBMITTED_BY_ROLE];
 
+// ---- Codes a usage unique ----
+
+// Usage d'un code OtpCode. La connexion marin se fait par mot de passe :
+// un code n'est plus emis que pour reinitialiser un mot de passe oublie,
+// ce qui limite le cout d'envoi aux seuls cas de perte.
+export const OTP_PURPOSE = {
+  PASSWORD_RESET: "PASSWORD_RESET",
+} as const;
+export type OtpPurpose = (typeof OTP_PURPOSE)[keyof typeof OTP_PURPOSE];
+
 // ---- Paiement ----
 export const PAYMENT_STATUS = {
   PENDING: "PENDING",

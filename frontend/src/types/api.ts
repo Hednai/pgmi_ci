@@ -93,6 +93,16 @@ export interface Marin {
   createdAt: string;
 }
 
+// Carte professionnelle vérifiable du marin (GET /api/marins/me/qr).
+// L'adresse encodée dans le QR est produite par le serveur : l'écran ne la
+// reconstruit jamais à partir de son propre domaine.
+export interface CarteVerifiable {
+  code: string;      // Matricule, lisible sous la vignette
+  url: string;       // Page publique de vérification
+  image: string;     // Vignette produite par le serveur, repli du rendu client
+  actif: boolean;    // Faux tant que la DGAM n'a pas activé le dossier
+}
+
 // Résumé d'un marin pour les listes agent (sans données sensibles complètes)
 export interface MarinResume {
   id: string;

@@ -9,6 +9,7 @@ import { serialiserMarin, serialiserMarinResume } from "./marin.serializer.js";
 import {
   obtenirMarin,
   obtenirSyntheseMarin,
+  obtenirQrMarin,
   majProfil,
   majPreferences,
   majPhotoProfil,
@@ -39,6 +40,12 @@ export const maSynthese = asyncHandler(async (req: Request, res: Response) => {
     success: true,
     data: { ...synthese, marin: serialiserMarin(synthese.marin) },
   });
+});
+
+// GET /api/marins/me/qr
+export const monQrCode = asyncHandler(async (req: Request, res: Response) => {
+  const qr = await obtenirQrMarin(acteurCourant(req).id);
+  res.status(200).json({ success: true, data: qr });
 });
 
 // PATCH /api/marins/me

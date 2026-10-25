@@ -335,11 +335,6 @@ export const assignerDemande = async (
   });
   if (!demande) throw new NotFoundError("Demande introuvable.");
 
-  // R8 : l'en-tête de ce fichier annonce « pas d'instruction avant
-  // confirmation du paiement », mais seule l'approbation le vérifiait. La
-  // matrice autorise AWAITING_PAYMENT vers ASSIGNED, transition que la
-  // confirmation de paiement utilise légitimement : le contrôle se fait donc
-  // ici, à l'entrée en instruction.
   const paiementConfirme = demande.payments.some(
     (paiement) => paiement.status === PAYMENT_STATUS.PAID,
   );
@@ -385,14 +380,70 @@ export const assignerDemande = async (
   return actualisee;
 };
 
-export const prendreEnInstruction = async (requestId: string, acteur: Acteur) =>
-  changerStatut({
+// Amener une demande jusqu'à l'instruction, en passant par les étapes que la
+// matrice REQUEST_TRANSITIONS impose.
+//
+// Une demande SUBMITTED ne peut pas sauter directement à IN_REVIEW : la
+// matrice n'autorise que SUBMITTED vers ASSIGNED, puis ASSIGNED vers
+// IN_REVIEW. L'agent qui ouvrait un dossier gratuit se heurtait donc à un
+// refus sur « Instruire » comme sur « Approuver », sans chemin possible.
+// L'agent fait un seul geste, le service parcourt les deux transitions, et
+// chacune reste tracée dans le journal.
+const avancerVersInstruction = async (requestId: string, acteur: Acteur) => {
+  const demande = await prisma.renewalRequest.findUnique({
+    where: { id: requestId },
+    select: { status: true, feeAmount: true, submittedById: true, payments: true },
+  });
+  if (!demande) throw new NotFoundError("Demande introuvable.");
+
+  if (demande.status === REQUEST_STATUS.IN_REVIEW) {
+    return obtenirDemande(requestId);
+  }
+
+  // R8 : les frais dus doivent être réglés avant toute entrée en instruction
+  const paiementConfirme = demande.payments.some(
+    (paiement) => paiement.status === PAYMENT_STATUS.PAID,
+  );
+  if (!instructionAutorisee({ feeAmount: demande.feeAmount, paiementConfirme })) {
+    throw new BusinessRuleError(
+      "Les frais de dossier doivent être réglés avant l'instruction.",
+      "R8",
+    );
+  }
+
+  // R6 : celui qui a soumis la demande ne l'instruit pas
+  if (demande.submittedById && demande.submittedById === acteur.id) {
+    throw new BusinessRuleError(
+      "Vous avez soumis cette demande, vous ne pouvez pas l'instruire.",
+      "R6",
+    );
+  }
+
+  // Première étape : la demande est prise en charge par cet agent
+  if (
+    demande.status === REQUEST_STATUS.SUBMITTED ||
+    demande.status === REQUEST_STATUS.AWAITING_PAYMENT
+  ) {
+    await changerStatut({
+      requestId,
+      cible: REQUEST_STATUS.ASSIGNED,
+      acteur,
+      data: { assignedToId: acteur.id, assignedAt: new Date() },
+      metadata: { motif: "Prise en charge par l'agent instructeur" },
+    });
+  }
+
+  return changerStatut({
     requestId,
     cible: REQUEST_STATUS.IN_REVIEW,
     acteur,
     data: { assignedToId: acteur.id, assignedAt: new Date() },
     messageMarin: "PGMI : votre demande est en cours d'instruction.",
   });
+};
+
+export const prendreEnInstruction = async (requestId: string, acteur: Acteur) =>
+  avancerVersInstruction(requestId, acteur);
 
 export const demanderComplement = async (
   requestId: string,
@@ -439,6 +490,14 @@ export const approuverDemande = async (
   if (demande.feeAmount > 0) {
     const paye = demande.payments.some((paiement) => paiement.status === PAYMENT_STATUS.PAID);
     if (!paye) throw new BusinessRuleError("Les frais de dossier ne sont pas réglés.", "R8");
+  }
+
+  // Seul l'état IN_REVIEW ouvre sur APPROVED. Un agent qui approuve un
+  // dossier encore assigné exprime la même décision : le service parcourt
+  // l'étape manquante au lieu de refuser un geste légitime, et les deux
+  // transitions restent écrites au journal.
+  if (demande.status !== REQUEST_STATUS.IN_REVIEW) {
+    await avancerVersInstruction(requestId, acteur);
   }
 
   const approuvee = await changerStatut({

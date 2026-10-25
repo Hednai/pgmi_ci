@@ -3,21 +3,22 @@
 // Logique métier de l'authentification.
 //
 // Deux parcours distincts :
-//   - marin : OTP SMS, aucun mot de passe à retenir, aucune adresse email
-//     obligatoire (contrainte terrain, cahier des charges 2.2.1) ;
+//   - marin : numéro de téléphone et mot de passe. Le code à usage unique
+//     n'intervient plus que pour une réinitialisation, ce qui ramène le coût
+//     d'envoi aux seuls mots de passe oubliés ;
 //   - agent : email et mot de passe, jetons révocables côté serveur.
 // ============================================
 import { randomInt, createHash, timingSafeEqual } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../lib/jwt.js";
-import { verifyPassword } from "../../lib/password.js";
+import { hashPassword, verifyPassword } from "../../lib/password.js";
 import { envoyerOtp } from "../../services/notification/notification.service.js";
 import {
   OTP_LENGTH,
   OTP_TTL_MINUTES,
   OTP_MAX_ATTEMPTS,
 } from "../../domain/rules.js";
-import { MARIN_STATUS, REGISTRATION_SOURCE } from "../../domain/status.js";
+import { MARIN_STATUS, REGISTRATION_SOURCE, OTP_PURPOSE } from "../../domain/status.js";
 import { AGENT_ROLE_LABELS } from "../../domain/roles.js";
 import type { AgentRole } from "../../domain/roles.js";
 import {
@@ -30,7 +31,7 @@ import { logAction, AUDIT_ACTION } from "../../utils/auditLog.js";
 import { env } from "../../config/env.js";
 import type { InscriptionMarin } from "./auth.validation.js";
 
-// Le code OTP n'est jamais stocké en clair : seul son empreinte l'est.
+// Le code à usage unique n'est jamais stocké en clair : seul son empreinte l'est.
 const hacherCode = (code: string): string =>
   createHash("sha256").update(code).digest("hex");
 
@@ -41,112 +42,31 @@ const memeCode = (attendu: string, fourni: string): boolean => {
   return a.length === b.length && timingSafeEqual(a, b);
 };
 
-// ---- Parcours marin ----
-
-// Émettre un code OTP pour un numéro. Le même appel sert à la connexion et
-// à l'inscription : le client n'a pas à savoir si le numéro existe déjà,
-// ce qui évite de transformer l'API en annuaire de marins enregistrés.
-export const emettreOtp = async (telephone: string, canal: "SMS" | "WHATSAPP" = "SMS") => {
-  const code = String(randomInt(0, 10 ** OTP_LENGTH)).padStart(OTP_LENGTH, "0");
-  const expiration = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
-
-  const marinExistant = await prisma.marin.findUnique({
-    where: { phone: telephone },
-    select: { id: true },
-  });
-
-  await prisma.otpCode.create({
-    data: {
-      phone: telephone,
-      codeHash: hacherCode(code),
-      purpose: marinExistant ? "LOGIN" : "REGISTRATION",
-      expiresAt: expiration,
-    },
-  });
-
-  await envoyerOtp(telephone, code, canal);
-
-  await logAction({
-    actorType: "MARIN",
-    actorId: marinExistant?.id ?? null,
-    action: AUDIT_ACTION.MARIN_OTP_REQUEST,
-    targetType: "Marin",
-    targetId: marinExistant?.id,
-    metadata: { compteExistant: Boolean(marinExistant) },
-  });
-
-  // L'existence du dossier reste côté serveur, dans le journal d'audit. La
-  // réponse est identique pour un numéro connu et un numéro inconnu : sans
-  // cela, l'API devient l'annuaire des marins enregistrés, ce que le
-  // commentaire d'en-tête de cette fonction cherche justement à éviter.
-  return {
-    expiresAt: expiration,
-    // Le code n'accompagne la réponse que sur une instance de démonstration.
-    ...(env.EXPOSE_OTP_IN_RESPONSE ? { codeDeveloppement: code } : {}),
-  };
-};
-
-// Contrôler un code OTP sans le consommer.
-// La consommation est séparée pour que le code ne soit invalidé qu'une fois
-// l'opération réussie : un marin sans dossier qui enchaîne sur l'inscription
-// garde ainsi un code utilisable.
-const verifierOtp = async (telephone: string, code: string) => {
-  const otp = await prisma.otpCode.findFirst({
-    where: { phone: telephone, consumedAt: null },
-    orderBy: { createdAt: "desc" },
-  });
-
-  if (!otp) throw new UnauthorizedError("Aucun code en attente pour ce numéro.");
-
-  if (otp.expiresAt.getTime() < Date.now()) {
-    throw new UnauthorizedError("Code expiré. Demandez un nouveau code.");
-  }
-
-  if (otp.attempts >= OTP_MAX_ATTEMPTS) {
-    throw new UnauthorizedError("Trop de tentatives. Demandez un nouveau code.");
-  }
-
-  if (!memeCode(otp.codeHash, code)) {
-    await prisma.otpCode.update({
-      where: { id: otp.id },
-      data: { attempts: { increment: 1 } },
-    });
-    throw new UnauthorizedError("Code incorrect.");
-  }
-
-  return otp;
-};
-
-// Invalider un code accepté : pas de rejeu possible.
-const consommerOtp = async (otpId: string) => {
-  await prisma.otpCode.update({
-    where: { id: otpId },
-    data: { consumedAt: new Date() },
-  });
-};
-
 // Construire la paire de jetons d'un marin
 const jetonsMarin = (marinId: string, authorityId: string) => ({
   accessToken: signAccessToken({ sub: marinId, type: "MARIN", authorityId }),
   refreshToken: signRefreshToken({ sub: marinId, type: "MARIN", authorityId }),
 });
 
-// Connecter un marin déjà enregistré.
-// Le code est contrôlé en premier : l'existence d'un dossier n'est révélée
-// qu'à un appelant qui détient déjà le code reçu par SMS.
-export const connecterMarin = async (telephone: string, code: string) => {
-  const otp = await verifierOtp(telephone, code);
+// ---- Connexion du marin ----
 
+// Connecter un marin par son numéro et son mot de passe.
+//
+// Le même message couvre le numéro inconnu, le dossier sans mot de passe et
+// le mot de passe faux : l'API ne doit pas devenir l'annuaire des marins
+// enregistrés.
+export const connecterMarin = async (telephone: string, motDePasse: string) => {
   const marin = await prisma.marin.findUnique({
     where: { phone: telephone },
     include: { fonction: true },
   });
 
-  if (!marin) {
-    throw new NotFoundError("Aucun dossier marin pour ce numéro. Créez votre dossier.");
-  }
+  const echec = new UnauthorizedError("Numéro ou mot de passe incorrect.");
 
-  await consommerOtp(otp.id);
+  if (!marin?.passwordHash) throw echec;
+
+  const valide = await verifyPassword(motDePasse, marin.passwordHash);
+  if (!valide) throw echec;
 
   if (marin.status === MARIN_STATUS.SUSPENDED) {
     throw new BusinessRuleError("Ce dossier marin est suspendu. Contactez la DGAM.");
@@ -165,11 +85,11 @@ export const connecterMarin = async (telephone: string, code: string) => {
 };
 
 // Créer un dossier marin depuis l'inscription en ligne.
+//
 // Le compte reste PENDING : seule une vérification d'identité en personne
-// l'active et attribue le matricule (R1, R3).
+// l'active et attribue le matricule (R1, R3). C'est cette vérification, et
+// non un code reçu au moment de l'inscription, qui fait foi sur l'identité.
 export const inscrireMarin = async (donnees: InscriptionMarin) => {
-  const otp = await verifierOtp(donnees.phone, donnees.code);
-
   const existant = await prisma.marin.findUnique({
     where: { phone: donnees.phone },
     select: { id: true },
@@ -177,8 +97,6 @@ export const inscrireMarin = async (donnees: InscriptionMarin) => {
   if (existant) {
     throw new ValidationError("Un dossier existe déjà pour ce numéro. Connectez-vous.");
   }
-
-  await consommerOtp(otp.id);
 
   // Rattachement à l'autorité nationale par défaut
   const dgam = await prisma.authority.findFirst({
@@ -191,6 +109,8 @@ export const inscrireMarin = async (donnees: InscriptionMarin) => {
     data: {
       authorityId: dgam.id,
       phone: donnees.phone,
+      passwordHash: await hashPassword(donnees.password),
+      passwordUpdatedAt: new Date(),
       email: donnees.email && donnees.email.length > 0 ? donnees.email : null,
       firstName: donnees.firstName,
       lastName: donnees.lastName,
@@ -217,6 +137,137 @@ export const inscrireMarin = async (donnees: InscriptionMarin) => {
   });
 
   return { marin, ...jetonsMarin(marin.id, marin.authorityId) };
+};
+
+// ---- Mot de passe oublié ----
+
+// Émettre un code de réinitialisation.
+//
+// Aucun envoi n'est déclenché pour un numéro sans dossier : c'est le seul
+// endroit de la plateforme qui engage un coût de message, il ne doit pas
+// partir dans le vide. La réponse reste identique dans les deux cas, pour ne
+// pas révéler quels numéros sont enregistrés.
+export const emettreCodeMotDePasse = async (
+  telephone: string,
+  canal: "SMS" | "WHATSAPP" = "WHATSAPP",
+) => {
+  const expiration = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
+
+  const marin = await prisma.marin.findUnique({
+    where: { phone: telephone },
+    select: { id: true },
+  });
+
+  if (!marin) {
+    return { expiresAt: expiration };
+  }
+
+  const code = String(randomInt(0, 10 ** OTP_LENGTH)).padStart(OTP_LENGTH, "0");
+
+  await prisma.otpCode.create({
+    data: {
+      phone: telephone,
+      codeHash: hacherCode(code),
+      purpose: OTP_PURPOSE.PASSWORD_RESET,
+      expiresAt: expiration,
+    },
+  });
+
+  await envoyerOtp(telephone, code, canal);
+
+  await logAction({
+    actorType: "MARIN",
+    actorId: marin.id,
+    action: AUDIT_ACTION.MARIN_OTP_REQUEST,
+    targetType: "Marin",
+    targetId: marin.id,
+    metadata: { usage: OTP_PURPOSE.PASSWORD_RESET, canal },
+  });
+
+  return {
+    expiresAt: expiration,
+    // Le code n'accompagne la réponse que sur une instance de démonstration.
+    ...(env.EXPOSE_OTP_IN_RESPONSE ? { codeDeveloppement: code } : {}),
+  };
+};
+
+// Contrôler un code sans le consommer
+const verifierCodeUsageUnique = async (telephone: string, code: string) => {
+  const otp = await prisma.otpCode.findFirst({
+    where: {
+      phone: telephone,
+      purpose: OTP_PURPOSE.PASSWORD_RESET,
+      consumedAt: null,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!otp) throw new UnauthorizedError("Aucun code en attente pour ce numéro.");
+
+  if (otp.expiresAt.getTime() < Date.now()) {
+    throw new UnauthorizedError("Code expiré. Demandez un nouveau code.");
+  }
+
+  if (otp.attempts >= OTP_MAX_ATTEMPTS) {
+    throw new UnauthorizedError("Trop de tentatives. Demandez un nouveau code.");
+  }
+
+  if (!memeCode(otp.codeHash, code)) {
+    await prisma.otpCode.update({
+      where: { id: otp.id },
+      data: { attempts: { increment: 1 } },
+    });
+    throw new UnauthorizedError("Code incorrect.");
+  }
+
+  return otp;
+};
+
+// Définir un nouveau mot de passe contre un code valide, puis ouvrir la
+// session. Le marin n'a pas à ressaisir ce qu'il vient de choisir.
+export const reinitialiserMotDePasseMarin = async (
+  telephone: string,
+  code: string,
+  nouveauMotDePasse: string,
+) => {
+  const otp = await verifierCodeUsageUnique(telephone, code);
+
+  const marin = await prisma.marin.findUnique({
+    where: { phone: telephone },
+    include: { fonction: true },
+  });
+  if (!marin) throw new NotFoundError("Aucun dossier marin pour ce numéro.");
+
+  if (marin.status === MARIN_STATUS.SUSPENDED) {
+    throw new BusinessRuleError("Ce dossier marin est suspendu. Contactez la DGAM.");
+  }
+
+  // Le code n'est invalidé qu'une fois l'écriture faite : un échec en base
+  // laisse au marin un code encore utilisable.
+  const actualise = await prisma.marin.update({
+    where: { id: marin.id },
+    data: {
+      passwordHash: await hashPassword(nouveauMotDePasse),
+      passwordUpdatedAt: new Date(),
+    },
+    include: { fonction: true },
+  });
+
+  await prisma.otpCode.update({
+    where: { id: otp.id },
+    data: { consumedAt: new Date() },
+  });
+
+  await logAction({
+    actorType: "MARIN",
+    actorId: marin.id,
+    actorLabel: `${marin.firstName} ${marin.lastName}`,
+    action: AUDIT_ACTION.MARIN_PASSWORD_RESET,
+    targetType: "Marin",
+    targetId: marin.id,
+  });
+
+  return { marin: actualise, ...jetonsMarin(actualise.id, actualise.authorityId) };
 };
 
 // ---- Parcours agent ----
@@ -321,9 +372,16 @@ export const rafraichirJeton = async (refreshToken: string) => {
 
   const marin = await prisma.marin.findUnique({
     where: { id: charge.sub },
-    select: { id: true, authorityId: true, status: true },
+    select: { id: true, authorityId: true, status: true, passwordUpdatedAt: true },
   });
   if (!marin || marin.status === MARIN_STATUS.SUSPENDED) throw new UnauthorizedError();
+
+  // Un mot de passe changé invalide les sessions ouvertes avant lui : c'est
+  // la seule protection si un téléphone a été perdu.
+  const emisLe = (charge.iat ?? 0) * 1000;
+  if (marin.passwordUpdatedAt && emisLe < marin.passwordUpdatedAt.getTime()) {
+    throw new UnauthorizedError("Session expirée. Reconnectez-vous.");
+  }
 
   return {
     accessToken: signAccessToken({

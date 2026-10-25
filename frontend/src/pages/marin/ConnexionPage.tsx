@@ -1,9 +1,8 @@
 // ============================================
 // pages/marin/ConnexionPage.tsx
-// Connexion du marin en deux étapes : numéro, puis code reçu par SMS.
-//
-// Pas de mot de passe : c'est un choix du cahier des charges, un marin de
-// retour de mer après six mois ne doit rien avoir à retenir.
+// Connexion du marin : numéro et mot de passe.
+// Le parcours « Mot de passe oublié ? » envoie un code à usage unique,
+// le seul envoi qui subsiste depuis la bascule au mot de passe.
 // ============================================
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -13,26 +12,30 @@ import { useAuthStore } from "../../stores/authStore.js";
 import { Button } from "../../components/atoms/Button.js";
 import { Icone } from "../../components/atoms/Icone.js";
 import { OtpInput } from "../../components/atoms/OtpInput.js";
+import { ChampMotDePasse } from "../../components/atoms/ChampMotDePasse.js";
 import { Alerte } from "../../components/atoms/Feedback.js";
-import { telephone as formaterTelephone } from "../../lib/format.js";
+import { MOT_DE_PASSE_LONGUEUR_MIN } from "../../lib/regles.js";
 import type { Marin } from "../../types/api.js";
 
-interface ReponseOtp {
+interface ReponseCode {
   expiresAt: string;
   codeDeveloppement?: string;
 }
 
-interface ReponseConnexion {
+interface ReponseSession {
   marin: Marin;
   accessToken: string;
   refreshToken: string;
 }
 
-// Durée de validité d'un code, en secondes. Le compte à rebours affiché
-// rassure le marin sur le délai dont il dispose.
+// Durée de validité d'un code, en secondes.
 const DUREE_CODE_SECONDES = 600;
+const LONGUEUR_CODE = 6;
 
-// Marque institutionnelle affichée en haut des deux étapes.
+// Canal d'envoi du code de réinitialisation
+type CanalCode = "SMS" | "WHATSAPP";
+
+// Marque institutionnelle affichée en haut des étapes.
 function EnteteInstitution() {
   return (
     <div className="text-center text-white">
@@ -49,22 +52,21 @@ function EnteteInstitution() {
   );
 }
 
-// Canaux d'envoi du code OTP
-type CanalOtp = "SMS" | "WHATSAPP";
-
 export function ConnexionPage() {
-  const [etape, setEtape] = useState<"telephone" | "code">("telephone");
+  // Trois étapes : connexion par mot de passe, demande d'un code, saisie du
+  // nouveau mot de passe.
+  const [etape, setEtape] = useState<"connexion" | "demandeCode" | "nouveauMotDePasse">(
+    "connexion",
+  );
   const [numero, setNumero] = useState("");
+  const [motDePasse, setMotDePasse] = useState("");
   const [code, setCode] = useState("");
+  const [nouveauMotDePasse, setNouveauMotDePasse] = useState("");
+  const [canal, setCanal] = useState<CanalCode>("WHATSAPP");
   const [erreur, setErreur] = useState("");
+  const [information, setInformation] = useState("");
   const [chargement, setChargement] = useState(false);
-  // Canal choisi par le marin pour recevoir son code
-  const [canal, setCanal] = useState<CanalOtp>("SMS");
-  // Vrai tant que la vérification du code n'a pas montré l'absence de
-  // dossier. L'API ne le dit plus à la demande de code : elle ne répond
-  // qu'après vérification, pour ne pas devenir un annuaire des marins.
-  const [compteExistant, setCompteExistant] = useState(true);
-  const [codeDeveloppement, setCodeDeveloppement] = useState<string>();
+  const [codeDeveloppement, setCodeDeveloppement] = useState<string | undefined>();
   const [secondesRestantes, setSecondesRestantes] = useState(DUREE_CODE_SECONDES);
 
   const connecterMarin = useAuthStore(function (etat) {
@@ -72,12 +74,10 @@ export function ConnexionPage() {
   });
   const naviguer = useNavigate();
 
-  // Compte à rebours de validité du code, actif seulement à la seconde étape.
+  // Compte à rebours de validité du code.
   useEffect(
     function decompterValidite() {
-      if (etape !== "code") {
-        return;
-      }
+      if (etape !== "nouveauMotDePasse") return;
 
       const minuteur = setInterval(function () {
         setSecondesRestantes(function (precedent) {
@@ -103,50 +103,93 @@ export function ConnexionPage() {
     return `${minutes}:${String(secondes).padStart(2, "0")}`;
   }
 
-  async function demanderCode(canalChoisi?: CanalOtp) {
-    const canalEffectif = canalChoisi ?? canal;
-    if (canalChoisi) setCanal(canalChoisi);
+  // Ouvrir la session et rejoindre l'accueil. Partagé par la connexion et
+  // par la réinitialisation : le marin qui vient de choisir un mot de passe
+  // n'a pas à le ressaisir.
+  function ouvrirSession(reponse: ReponseSession) {
+    connecterMarin(reponse.marin, reponse.accessToken, reponse.refreshToken);
+    naviguer("/accueil", { replace: true });
+  }
+
+  function signaler(err: unknown) {
+    setErreur(err instanceof ErreurApi ? err.message : t.commun.erreurReseau);
+  }
+
+  async function seConnecter() {
     setErreur("");
     setChargement(true);
     try {
-      const reponse = await api.post<ReponseOtp>(
-        "/api/auth/otp/request",
-        { phone: numeroComplet(), canal: canalEffectif },
-        true,
+      ouvrirSession(
+        await api.post<ReponseSession>(
+          "/api/auth/marin/login",
+          { phone: numeroComplet(), password: motDePasse },
+          true,
+        ),
       );
-      setCodeDeveloppement(reponse.codeDeveloppement);
-      setSecondesRestantes(DUREE_CODE_SECONDES);
-      setEtape("code");
     } catch (err) {
-      setErreur(err instanceof ErreurApi ? err.message : t.commun.erreurReseau);
+      signaler(err);
     } finally {
       setChargement(false);
     }
   }
 
-  async function validerCode() {
+  async function demanderCode(canalChoisi?: CanalCode) {
+    const canalEffectif = canalChoisi ?? canal;
+    if (canalChoisi) setCanal(canalChoisi);
     setErreur("");
     setChargement(true);
     try {
-      const reponse = await api.post<ReponseConnexion>(
-        "/api/auth/otp/verify",
-        { phone: numeroComplet(), code },
+      const reponse = await api.post<ReponseCode>(
+        "/api/auth/marin/mot-de-passe/code",
+        { phone: numeroComplet(), canal: canalEffectif },
         true,
       );
-      connecterMarin(reponse.marin, reponse.accessToken, reponse.refreshToken);
-      naviguer("/accueil", { replace: true });
+      setCodeDeveloppement(reponse.codeDeveloppement);
+      setSecondesRestantes(DUREE_CODE_SECONDES);
+      setInformation(t.auth.codeEnvoye);
+      setEtape("nouveauMotDePasse");
     } catch (err) {
-      // 404 : le code est bon mais aucun dossier n'existe pour ce numéro.
-      // Le code n'a pas été consommé, l'inscription peut le réutiliser.
-      if (err instanceof ErreurApi && err.statut === 404) {
-        setCompteExistant(false);
-        return;
-      }
-      setErreur(err instanceof ErreurApi ? err.message : t.commun.erreurReseau);
+      signaler(err);
     } finally {
       setChargement(false);
     }
   }
+
+  async function definirMotDePasse() {
+    if (nouveauMotDePasse.length < MOT_DE_PASSE_LONGUEUR_MIN) {
+      setErreur(t.auth.motDePasseTropCourt);
+      return;
+    }
+
+    setErreur("");
+    setChargement(true);
+    try {
+      ouvrirSession(
+        await api.post<ReponseSession>(
+          "/api/auth/marin/mot-de-passe",
+          { phone: numeroComplet(), code, password: nouveauMotDePasse },
+          true,
+        ),
+      );
+    } catch (err) {
+      signaler(err);
+    } finally {
+      setChargement(false);
+    }
+  }
+
+  // Revenir à la connexion en repartant d'un état propre : un code ou un
+  // mot de passe à moitié saisi ne doit pas survivre au changement d'étape.
+  function revenirALaConnexion() {
+    setEtape("connexion");
+    setCode("");
+    setNouveauMotDePasse("");
+    setCodeDeveloppement(undefined);
+    setErreur("");
+    setInformation("");
+  }
+
+  const numeroSaisi = numero.replace(/\D/g, "").length >= 8;
 
   return (
     <div className="flex min-h-screen flex-col justify-center bg-gradient-to-br from-navy to-navy-light px-5 py-10">
@@ -154,68 +197,76 @@ export function ConnexionPage() {
         <EnteteInstitution />
 
         <div className="mt-7 rounded-2xl bg-white p-5 shadow-xl">
-          {etape === "telephone" ? (
-            <div className="space-y-4">
-              <div>
-                <label
-                  htmlFor="champ-telephone"
-                  className="text-sm font-semibold text-navy"
-                >
-                  {t.auth.telephone} <span className="text-erreur">*</span>
-                </label>
+          {/* Le champ numéro est commun aux trois étapes : le marin ne le
+              ressaisit pas en passant par la réinitialisation. */}
+          {etape !== "nouveauMotDePasse" && (
+            <div>
+              <label htmlFor="champ-telephone" className="text-sm font-semibold text-navy">
+                {t.auth.telephone} <span className="text-erreur">*</span>
+              </label>
 
-                {/* Le préfixe pays est fixe : le marin ne saisit que son numéro */}
-                <div className="mt-1.5 flex items-center gap-2 rounded-xl bg-fond px-3.5 py-3">
-                  <span className="shrink-0 text-sm font-semibold text-navy">
-                    {t.auth.prefixePays}
-                  </span>
-                  <span className="h-5 w-px bg-bordure" />
-                  <input
-                    id="champ-telephone"
-                    type="tel"
-                    inputMode="tel"
-                    autoComplete="tel"
-                    placeholder="07 00 00 00 00"
-                    value={numero}
-                    onChange={function (evenement) {
-                      setNumero(evenement.target.value);
-                    }}
-                    className="w-full bg-transparent text-sm font-medium text-navy outline-none placeholder:text-ardoise/60"
-                  />
-                </div>
-
-                <p className="mt-1.5 text-xs text-ardoise">{t.auth.telephoneAide}</p>
+              {/* Le préfixe pays est fixe : le marin ne saisit que son numéro */}
+              <div className="mt-1.5 flex items-center gap-2 rounded-xl bg-fond px-3.5 py-3">
+                <span className="shrink-0 text-sm font-semibold text-navy">
+                  {t.auth.prefixePays}
+                </span>
+                <span className="h-5 w-px bg-bordure" />
+                <input
+                  id="champ-telephone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="username tel"
+                  placeholder="07 00 00 00 00"
+                  value={numero}
+                  onChange={function (evenement) {
+                    setNumero(evenement.target.value);
+                  }}
+                  className="w-full bg-transparent text-sm font-medium text-navy outline-none placeholder:text-ardoise/60"
+                />
               </div>
+
+              <p className="mt-1.5 text-xs text-ardoise">{t.auth.telephoneAide}</p>
+            </div>
+          )}
+
+          {etape === "connexion" && (
+            <div className="mt-4 space-y-4">
+              <ChampMotDePasse
+                label={t.auth.motDePasse}
+                autoComplete="current-password"
+                value={motDePasse}
+                onChange={function (evenement) {
+                  setMotDePasse(evenement.target.value);
+                }}
+                onKeyDown={function (evenement) {
+                  if (evenement.key === "Enter") void seConnecter();
+                }}
+                obligatoire
+              />
 
               {erreur && <Alerte ton="erreur">{erreur}</Alerte>}
 
-              {/* Choix du canal : SMS (bientôt disponible) ou WhatsApp */}
-              <p className="text-xs font-semibold text-navy">{t.auth.choixCanal}</p>
-              <div className="flex gap-3">
-                <Button
-                  pleineLargeur
-                  taille="lg"
-                  disabled
-                  className="opacity-50"
-                >
-                  {t.auth.canalSms}
-                </Button>
-                <Button
-                  pleineLargeur
-                  taille="lg"
-                  chargement={chargement}
-                  disabled={numero.replace(/\D/g, "").length < 8 || chargement}
-                  onClick={function () {
-                    void demanderCode("WHATSAPP");
-                  }}
-                  className="bg-[#25D366] shadow-lg shadow-[#25D366]/25 hover:bg-[#1da851]"
-                >
-                  {t.auth.canalWhatsapp}
-                </Button>
-              </div>
-              <p className="text-center text-[11px] text-ardoise">
-                {t.auth.canalSmsIndisponible}
-              </p>
+              <Button
+                pleineLargeur
+                taille="lg"
+                chargement={chargement}
+                disabled={!numeroSaisi || motDePasse.length === 0}
+                onClick={seConnecter}
+                className="shadow-lg shadow-orange-ci/25"
+              >
+                {t.auth.connexion}
+              </Button>
+
+              <button
+                type="button"
+                onClick={function () {
+                  setErreur("");
+                  setEtape("demandeCode");
+                }}
+                className="block w-full text-center text-xs font-semibold text-navy-light hover:underline"
+              >
+                {t.auth.oublie}
+              </button>
 
               <Link
                 to="/inscription"
@@ -233,70 +284,104 @@ export function ConnexionPage() {
                 </Link>
               </p>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="text-center">
-                <p className="text-sm font-semibold text-navy">
-                  {canal === "WHATSAPP" ? t.auth.codeEnvoyeWhatsapp : t.auth.codeEnvoye}
-                </p>
-                <p className="mt-0.5 text-xs text-ardoise">
-                  {t.auth.codeInstruction} {formaterTelephone(numeroComplet())}
-                </p>
-              </div>
+          )}
 
-              <OtpInput valeur={code} onChange={setCode} desactive={chargement} />
+          {etape === "demandeCode" && (
+            <div className="mt-4 space-y-4">
+              <Alerte ton="info" titre={t.auth.oublieTitre}>
+                {t.auth.oublieExplication}
+              </Alerte>
+
+              {erreur && <Alerte ton="erreur">{erreur}</Alerte>}
+
+              <p className="text-xs font-semibold text-navy">{t.auth.oublieCanal}</p>
+              <div className="flex gap-3">
+                <Button pleineLargeur taille="lg" disabled className="opacity-50">
+                  {t.auth.canalSms}
+                </Button>
+                <Button
+                  pleineLargeur
+                  taille="lg"
+                  chargement={chargement}
+                  disabled={!numeroSaisi || chargement}
+                  onClick={function () {
+                    void demanderCode("WHATSAPP");
+                  }}
+                  className="bg-[#25D366] shadow-lg shadow-[#25D366]/25 hover:bg-[#1da851]"
+                >
+                  {t.auth.canalWhatsapp}
+                </Button>
+              </div>
+              <p className="text-center text-[11px] text-ardoise">
+                {t.auth.canalSmsIndisponible}
+              </p>
+
+              <button
+                type="button"
+                onClick={revenirALaConnexion}
+                className="block w-full text-center text-xs font-medium text-ardoise hover:underline"
+              >
+                {t.auth.retourConnexion}
+              </button>
+            </div>
+          )}
+
+          {etape === "nouveauMotDePasse" && (
+            <div className="space-y-4">
+              {information && <Alerte ton="info">{information}</Alerte>}
+
+              <div>
+                <p className="text-center text-sm font-semibold text-navy">
+                  {t.auth.codeChamp}
+                </p>
+                <div className="mt-2">
+                  <OtpInput valeur={code} onChange={setCode} desactive={chargement} />
+                </div>
+              </div>
 
               <p className="text-center text-xs text-ardoise">
                 {t.auth.expireDans}{" "}
                 <span className="matricule font-semibold text-navy">{minutesEtSecondes()}</span>
               </p>
 
-              {/* Confort de démonstration : le code n'est jamais renvoyé en production */}
+              {/* Confort de recette : le code n'est jamais renvoyé en production */}
               {codeDeveloppement && (
                 <Alerte ton="info">
                   {t.auth.codeDeveloppement} : <strong>{codeDeveloppement}</strong>
                 </Alerte>
               )}
 
+              <ChampMotDePasse
+                label={t.auth.nouveauMotDePasse}
+                aide={t.auth.motDePasseAide}
+                autoComplete="new-password"
+                value={nouveauMotDePasse}
+                onChange={function (evenement) {
+                  setNouveauMotDePasse(evenement.target.value);
+                }}
+                obligatoire
+              />
+
               {erreur && <Alerte ton="erreur">{erreur}</Alerte>}
 
-              {compteExistant ? (
-                <Button
-                  pleineLargeur
-                  taille="lg"
-                  chargement={chargement}
-                  disabled={code.length < 6}
-                  onClick={validerCode}
-                  className="shadow-lg shadow-orange-ci/25"
-                >
-                  {t.auth.validerCode}
-                </Button>
-              ) : (
-                <>
-                  <Alerte ton="info">{t.inscription.rappelGuichet}</Alerte>
-                  <Button
-                    pleineLargeur
-                    taille="lg"
-                    disabled={code.length < 6}
-                    onClick={function () {
-                      naviguer("/inscription", { state: { phone: numeroComplet(), code } });
-                    }}
-                  >
-                    {t.auth.creerDossier}
-                  </Button>
-                </>
-              )}
+              <Button
+                pleineLargeur
+                taille="lg"
+                chargement={chargement}
+                disabled={code.length < LONGUEUR_CODE}
+                onClick={definirMotDePasse}
+                className="shadow-lg shadow-orange-ci/25"
+              >
+                {t.auth.definirMotDePasse}
+              </Button>
 
               <div className="flex justify-between border-t border-bordure pt-3 text-xs">
                 <button
                   type="button"
-                  onClick={function () {
-                    setEtape("telephone");
-                    setCode("");
-                  }}
+                  onClick={revenirALaConnexion}
                   className="font-medium text-ardoise hover:underline"
                 >
-                  {t.auth.changerNumero}
+                  {t.auth.retourConnexion}
                 </button>
 
                 <button

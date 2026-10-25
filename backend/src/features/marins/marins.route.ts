@@ -28,6 +28,7 @@ import {
 import {
   monProfil,
   maSynthese,
+  monQrCode,
   majMonProfil,
   majMesPreferences,
   deposerMaPhoto,
@@ -45,6 +46,8 @@ const marinsRouter = Router();
 // ---- Espace marin ----
 marinsRouter.get("/me", requireMarin, monProfil);
 marinsRouter.get("/me/synthese", requireMarin, maSynthese);
+// Déclarée avant /:id pour ne pas être captée par la route paramétrée des agents
+marinsRouter.get("/me/qr", requireMarin, monQrCode);
 marinsRouter.patch("/me", requireMarin, validateBody(majProfilSchema), majMonProfil);
 marinsRouter.patch(
   "/me/preferences",
