@@ -6,10 +6,9 @@
 import type { Request, Response } from "express";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import {
+  emettreOtp,
   connecterMarin,
   inscrireMarin,
-  emettreCodeMotDePasse,
-  reinitialiserMotDePasseMarin,
   connecterAgent,
   deconnecterAgent,
   rafraichirJeton,
@@ -17,11 +16,17 @@ import {
 import { serialiserMarin } from "../marins/marin.serializer.js";
 import { permissionsDuRole } from "../../domain/permissions.js";
 
-// POST /api/auth/marin/login
-export const connexionMarin = asyncHandler(async (req: Request, res: Response) => {
+// POST /api/auth/otp/request
+export const demanderOtp = asyncHandler(async (req: Request, res: Response) => {
+  const resultat = await emettreOtp(req.body.phone, req.body.canal);
+  res.status(200).json({ success: true, data: resultat });
+});
+
+// POST /api/auth/otp/verify
+export const verifierOtp = asyncHandler(async (req: Request, res: Response) => {
   const { marin, accessToken, refreshToken } = await connecterMarin(
     req.body.phone,
-    req.body.password,
+    req.body.code,
   );
 
   res.status(200).json({
@@ -35,26 +40,6 @@ export const inscrire = asyncHandler(async (req: Request, res: Response) => {
   const { marin, accessToken, refreshToken } = await inscrireMarin(req.body);
 
   res.status(201).json({
-    success: true,
-    data: { marin: serialiserMarin(marin), accessToken, refreshToken },
-  });
-});
-
-// POST /api/auth/marin/mot-de-passe/code
-export const demanderCodeMotDePasse = asyncHandler(async (req: Request, res: Response) => {
-  const resultat = await emettreCodeMotDePasse(req.body.phone, req.body.canal);
-  res.status(200).json({ success: true, data: resultat });
-});
-
-// POST /api/auth/marin/mot-de-passe
-export const reinitialiserMotDePasse = asyncHandler(async (req: Request, res: Response) => {
-  const { marin, accessToken, refreshToken } = await reinitialiserMotDePasseMarin(
-    req.body.phone,
-    req.body.code,
-    req.body.password,
-  );
-
-  res.status(200).json({
     success: true,
     data: { marin: serialiserMarin(marin), accessToken, refreshToken },
   });

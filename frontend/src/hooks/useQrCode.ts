@@ -1,14 +1,8 @@
 // ============================================
 // hooks/useQrCode.ts
 // Génère un QR code en data URL à partir d'un contenu textuel.
-//
-// La vignette est produite dans le navigateur, à partir de l'adresse que
-// le serveur a donnée. L'écran ne dépend donc plus d'une image renvoyée
-// par l'API : quand celle-ci manquait, le QR tournait indéfiniment sans
-// qu'aucun message n'explique pourquoi.
-//
-// Le code de vérification reste lisible sous la vignette : si le rendu
-// échoue, l'inspecteur peut toujours saisir le code à la main.
+// Utilise la lib qrcode côté client pour un rendu immédiat
+// sans appel réseau au backend.
 // ============================================
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
@@ -24,50 +18,21 @@ const OPTIONS_QR: QRCode.QRCodeToDataURLOptions = {
   },
 };
 
-// État du rendu, pour que l'écran distingue l'attente de l'échec.
-export interface EtatQrCode {
-  image: string | null;
-  // Vrai pendant la génération, faux dès qu'elle aboutit ou échoue
-  enCours: boolean;
-  // Vrai si la vignette n'a pas pu être produite
-  echec: boolean;
-}
-
-// Retourne la vignette du contenu fourni. Un contenu nul laisse l'état au
-// repos : ce n'est pas une attente, il n'y a simplement rien à produire.
-export function useQrCode(contenu: string | null): EtatQrCode {
-  const [etat, setEtat] = useState<EtatQrCode>({
-    image: null,
-    enCours: false,
-    echec: false,
-  });
+// Retourne la data URL de l'image QR, ou null si le contenu est absent.
+// Le recalcul n'a lieu que si contenu change.
+export function useQrCode(contenu: string | null): string | null {
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
 
   useEffect(
     function genererQr() {
       if (!contenu) {
-        setEtat({ image: null, enCours: false, echec: false });
+        setDataUrl(null);
         return;
       }
-
-      // Le rendu suivant ne doit pas écraser un rendu plus récent si le
-      // contenu change pendant la génération.
-      let vivant = true;
-      setEtat({ image: null, enCours: true, echec: false });
-
-      QRCode.toDataURL(contenu, OPTIONS_QR)
-        .then(function (dataUrl) {
-          if (vivant) setEtat({ image: dataUrl, enCours: false, echec: false });
-        })
-        .catch(function () {
-          if (vivant) setEtat({ image: null, enCours: false, echec: true });
-        });
-
-      return function annuler() {
-        vivant = false;
-      };
+      void QRCode.toDataURL(contenu, OPTIONS_QR).then(setDataUrl);
     },
     [contenu],
   );
 
-  return etat;
+  return dataUrl;
 }

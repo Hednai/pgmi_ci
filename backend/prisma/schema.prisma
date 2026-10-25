@@ -91,11 +91,6 @@ model Marin {
   matricule          String?   @unique
   phone              String    @unique
   email              String?
-  // Mot de passe du marin, haché par lib/password.ts. Optionnel : les
-  // dossiers ouverts au guichet avant la bascule n'en ont pas encore, et
-  // le marin le définit lors de sa première connexion.
-  passwordHash       String?
-  passwordUpdatedAt  DateTime?
   firstName          String
   lastName           String
   birthDate          DateTime
@@ -134,14 +129,12 @@ model Marin {
   @@index([registrationSource])
 }
 
-// Code à usage unique, envoyé pour réinitialiser un mot de passe oublié.
-// La connexion courante n'en consomme plus : elle se fait par mot de passe,
-// ce qui supprime le coût d'un envoi à chaque ouverture de session.
+// Code OTP à usage unique. Seul le hachage du code est stocké.
 model OtpCode {
   id         String    @id @default(cuid())
   phone      String
   codeHash   String
-  purpose    String    @default("PASSWORD_RESET")
+  purpose    String    @default("LOGIN")
   expiresAt  DateTime
   attempts   Int       @default(0)
   consumedAt DateTime?

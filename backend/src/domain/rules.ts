@@ -97,16 +97,7 @@ export const EXPIRY_REMINDER_STEPS: ExpiryReminderStep[] = [
 // travail planifié n'a pas tourné un jour donné.
 export const REMINDER_TOLERANCE_DAYS = 2;
 
-// Longueur minimale d'un mot de passe, marin comme agent (ENF-002).
-// Déclarée ici et nulle part ailleurs : les schémas Zod des deux parcours
-// la lisent, aucun n'écrit son propre nombre.
-export const MOT_DE_PASSE_LONGUEUR_MIN = 8;
-
-// Longueur maximale acceptée à la saisie. Une phrase de passe reste possible,
-// au-delà le coût de hachage ne protège plus personne.
-export const MOT_DE_PASSE_LONGUEUR_MAX = 128;
-
-// Durée de validité d'un code à usage unique
+// Durée de validité d'un code OTP
 export const OTP_TTL_MINUTES = 10;
 
 // Nombre d'essais avant invalidation d'un code OTP

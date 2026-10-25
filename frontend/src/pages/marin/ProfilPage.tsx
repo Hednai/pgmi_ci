@@ -14,10 +14,10 @@ import { Card } from "../../components/atoms/Card.js";
 import { Button } from "../../components/atoms/Button.js";
 import { Icone } from "../../components/atoms/Icone.js";
 import { InputField, SelectField } from "../../components/atoms/Field.js";
-import { Alerte, Spinner } from "../../components/atoms/Feedback.js";
+import { Alerte } from "../../components/atoms/Feedback.js";
 import { dateCourte, initiales, telephone } from "../../lib/format.js";
 import { useQrCode } from "../../hooks/useQrCode.js";
-import type { CarteVerifiable, Marin } from "../../types/api.js";
+import type { Marin } from "../../types/api.js";
 
 // Ligne d'information de la carte d'identité, séparée par un filet.
 function Ligne({ libelleChamp, valeur }: { libelleChamp: string; valeur: string }) {
@@ -29,7 +29,8 @@ function Ligne({ libelleChamp, valeur }: { libelleChamp: string; valeur: string 
   );
 }
 
-// Interrupteur de canal de notification.
+// Interrupteur de canal de notification. Le canal obligatoire est rendu
+// visuellement actif mais non modifiable.
 function InterrupteurCanal({
   etiquette,
   detail,
@@ -59,7 +60,9 @@ function InterrupteurCanal({
         aria-label={etiquette}
         disabled={verrouille || desactive}
         onClick={function () {
-          if (onChange) onChange(!actif);
+          if (onChange) {
+            onChange(!actif);
+          }
         }}
         className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-60 ${actif ? "bg-vert-ci" : "bg-bordure"}`}
       >
@@ -82,15 +85,11 @@ export function ProfilPage() {
   const [erreur, setErreur] = useState("");
   const [envoi, setEnvoi] = useState(false);
 
-  // Carte professionnelle vérifiable, servie par l'API.
-  //
-  // L'adresse encodée dans le QR vient du serveur : c'est la page publique
-  // de vérification du registre. L'écran la construisait auparavant à
-  // partir de son propre domaine, vers une page qui n'existait pas, et le
-  // scan ne menait nulle part.
-  const [carte, setCarte] = useState<CarteVerifiable | null>(null);
-  const [carteIndisponible, setCarteIndisponible] = useState(false);
-  const { image: qrImage, enCours: qrEnCours } = useQrCode(carte ? carte.url : null);
+  // URL de vérification encodée dans le QR code scannable
+  const urlVerification = marin?.matricule
+    ? `${window.location.origin}/verification?matricule=${encodeURIComponent(marin.matricule)}`
+    : null;
+  const qrImage = useQrCode(urlVerification);
 
   useEffect(
     function chargerReferentiels() {
@@ -98,17 +97,6 @@ export function ProfilPage() {
     },
     [charger],
   );
-
-  useEffect(function chargerCarte() {
-    api
-      .get<CarteVerifiable>("/api/marins/me/qr")
-      .then(setCarte)
-      .catch(function () {
-        // Dossier non encore activé, ou carte momentanément indisponible :
-        // l'écran l'explique au lieu d'afficher un cadre vide.
-        setCarteIndisponible(true);
-      });
-  }, []);
 
   if (!marin) {
     return null;
@@ -134,7 +122,9 @@ export function ProfilPage() {
   }
 
   async function basculerCanal(canal: "whatsapp" | "email", valeur: boolean) {
-    if (!marin) return;
+    if (!marin) {
+      return;
+    }
     setErreur("");
     try {
       const actualise = await api.patch<Marin>("/api/marins/me/preferences", {
@@ -240,34 +230,25 @@ export function ProfilPage() {
         <Card className="text-center">
           <h2 className="text-sm font-semibold text-navy">{t.profil.qrProfessionnel}</h2>
 
-          {qrImage && carte ? (
-            <>
-              <img
-                src={qrImage}
-                alt={`QR code de vérification ${carte.code}`}
-                className="mx-auto my-4 h-40 w-40 rounded-xl"
-              />
-              {/* L'adresse imprimée est celle que porte le QR, pas une
-                  reconstitution : les deux ne peuvent pas diverger. */}
-              <p className="matricule break-all text-xs text-ardoise">{carte.url}</p>
-              <p className="mt-2 text-[11px] leading-relaxed text-ardoise">{t.profil.qrAide}</p>
-            </>
+          {qrImage ? (
+            <img
+              src={qrImage}
+              alt={`QR code de vérification ${marin.matricule ?? ""}`}
+              className="mx-auto my-4 h-40 w-40 rounded-xl"
+            />
           ) : (
-            <>
-              <div className="mx-auto my-4 flex h-40 w-40 items-center justify-center rounded-xl border-2 border-navy/10 bg-fond">
-                {qrEnCours || (!carte && !carteIndisponible) ? (
-                  <Spinner classe="h-8 w-8" />
-                ) : (
-                  <Icone nom="qrCode" taille={72} epaisseur={1.2} className="text-navy/25" />
-                )}
-              </div>
-              {carteIndisponible && (
-                <p className="text-[11px] leading-relaxed text-ardoise">
-                  {t.profil.qrIndisponible}
-                </p>
-              )}
-            </>
+            <div className="mx-auto my-4 flex h-40 w-40 items-center justify-center rounded-xl border-2 border-navy/10 bg-fond">
+              <Icone nom="qrCode" taille={72} epaisseur={1.2} className="text-navy/25" />
+            </div>
           )}
+
+          <p className="matricule text-xs text-ardoise">
+            pgmi.ci/v/{marin.matricule ? marin.matricule.slice(-9) : "…"}
+          </p>
+
+          <Button variante="discret" pleineLargeur className="mt-3">
+            {t.profil.partagerQr}
+          </Button>
         </Card>
 
         <Card>

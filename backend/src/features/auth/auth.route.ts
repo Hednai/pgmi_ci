@@ -2,25 +2,23 @@
 // features/auth/auth.route.ts
 // Routes d'authentification.
 // Le rate limiting est posé ici plutôt que dans app.ts : la contrainte
-// appartient à cette fonctionnalité.
+// (5 OTP par heure et par numéro) appartient à cette fonctionnalité.
 // ============================================
 import { Router } from "express";
 import { validateBody } from "../../middleware/validate.js";
 import { requireAgent } from "../../middleware/auth.js";
 import { otpLimiter, loginLimiter, refreshLimiter } from "../../middleware/limiteurs.js";
 import {
-  connexionMarinSchema,
+  demandeOtpSchema,
+  verificationOtpSchema,
   inscriptionMarinSchema,
-  demandeCodeMotDePasseSchema,
-  reinitialisationMotDePasseSchema,
   connexionAgentSchema,
   rafraichirSchema,
 } from "./auth.validation.js";
 import {
-  connexionMarin,
+  demanderOtp,
+  verifierOtp,
   inscrire,
-  demanderCodeMotDePasse,
-  reinitialiserMotDePasse,
   connexionAgent,
   deconnexionAgent,
   rafraichir,
@@ -29,15 +27,9 @@ import {
 
 const authRouter = Router();
 
-// Connexion du marin par numéro et mot de passe
-authRouter.post("/marin/login", loginLimiter, validateBody(connexionMarinSchema), connexionMarin);
-
-// Inscription en ligne : le marin choisit son mot de passe à l'inscription
+authRouter.post("/otp/request", otpLimiter, validateBody(demandeOtpSchema), demanderOtp);
+authRouter.post("/otp/verify", loginLimiter, validateBody(verificationOtpSchema), verifierOtp);
 authRouter.post("/register", loginLimiter, validateBody(inscriptionMarinSchema), inscrire);
-
-// Mot de passe oublié : demande du code, puis définition du nouveau mot de passe
-authRouter.post("/marin/mot-de-passe/code", otpLimiter, validateBody(demandeCodeMotDePasseSchema), demanderCodeMotDePasse);
-authRouter.post("/marin/mot-de-passe", loginLimiter, validateBody(reinitialisationMotDePasseSchema), reinitialiserMotDePasse);
 
 authRouter.post("/agent/login", loginLimiter, validateBody(connexionAgentSchema), connexionAgent);
 authRouter.post("/agent/logout", requireAgent, deconnexionAgent);

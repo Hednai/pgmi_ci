@@ -265,7 +265,7 @@ export function PaiementPage() {
 
         {/* En bac à sable, le paiement est confirmé sans opérateur réel :
             l'information évite toute confusion pendant les démonstrations. */}
-        {moyens.modeBacASable && <Alerte ton="info">{t.paiement.modeBacASable}</Alerte>}
+        {moyens.modeBacASable && <Alerte ton="info">{t.commun.modeDemonstration}</Alerte>}
 
         <Button
           pleineLargeur

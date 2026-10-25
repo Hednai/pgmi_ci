@@ -31,7 +31,6 @@ import {
 } from "../../services/storage/suppressionDifferee.js";
 import type { ClientSuppression } from "../../services/storage/suppressionDifferee.js";
 import { joursAvantExpiration } from "../../utils/dates.js";
-import { buildVerificationUrl, generateQrDataUrl } from "../../lib/qrcode.js";
 import { EXPIRY_WARNING_WINDOW_DAYS } from "../../domain/rules.js";
 import type { Acteur } from "../../middleware/auth.js";
 import type { MajProfil, Activation, InscriptionEleve } from "./marins.validation.js";
@@ -49,37 +48,6 @@ export const obtenirMarin = async (marinId: string) => {
   });
   if (!marin) throw new NotFoundError("Dossier marin introuvable.");
   return marin;
-};
-
-// Carte professionnelle vérifiable du marin.
-//
-// Le contenu du QR vient du serveur et non de l'écran : c'est l'adresse de
-// la page publique de vérification, la même que celle imprimée sous le QR
-// d'un document. L'ancien QR portait une adresse construite par le client à
-// partir de son propre domaine, qui ne menait à aucune page de vérification.
-//
-// Sans matricule, aucune carte n'est produite : le registre ne peut rien
-// certifier d'un dossier que la DGAM n'a pas encore activé (R1, R3).
-export const obtenirQrMarin = async (marinId: string) => {
-  const marin = await prisma.marin.findUnique({
-    where: { id: marinId },
-    select: { matricule: true, status: true },
-  });
-  if (!marin) throw new NotFoundError("Dossier marin introuvable.");
-
-  if (!marin.matricule) {
-    throw new BusinessRuleError(
-      "Votre dossier doit être activé au guichet DGAM avant de recevoir une carte vérifiable.",
-      "R1",
-    );
-  }
-
-  return {
-    code: marin.matricule,
-    url: buildVerificationUrl(marin.matricule),
-    image: await generateQrDataUrl(marin.matricule),
-    actif: marin.status === MARIN_STATUS.ACTIVE,
-  };
 };
 
 // Synthèse du dossier affichée sur l'écran d'accueil du marin.
