@@ -1,12 +1,8 @@
 // ============================================
 // pages/marin/DocumentsPage.tsx
 // Coffre documentaire du marin : dépôt, consultation, QR code.
-//
-// Les documents dont l'échéance approche remontent visuellement : bordure
-// orange et action de renouvellement intégrée à la carte, pour qu'un marin
-// en escale comprenne son dossier en un coup d'oeil.
 // ============================================
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { t, libelle } from "../../i18n/index.js";
 import { api, lireFichier, ErreurApi } from "../../lib/apiClient.js";
@@ -18,6 +14,10 @@ import { Icone } from "../../components/atoms/Icone.js";
 import { InputField, SelectField } from "../../components/atoms/Field.js";
 import { Alerte, ChargementPage, Spinner } from "../../components/atoms/Feedback.js";
 import { EnteteEcran } from "../../components/layouts/EnteteEcran.js";
+import { PieceJointe } from "../../components/molecules/PieceJointe.js";
+import { useQrCode } from "../../hooks/useQrCode.js";
+import { useFluxTempsReel } from "../../hooks/useFluxTempsReel.js";
+import { EVENEMENTS_ECRAN } from "../../lib/evenements.js";
 import { dateCourte } from "../../lib/format.js";
 import type { DocumentMaritime } from "../../types/api.js";
 
@@ -29,8 +29,7 @@ interface DonneesQr {
   statut: string;
 }
 
-// Filtres proposés au marin. La valeur correspond à la catégorie du
-// référentiel des types de certificat, "TOUS" affichant la liste entière.
+// Filtres proposés au marin.
 const FILTRES = [
   { valeur: "TOUS", libelle: t.documents.filtreTous },
   { valeur: "STCW", libelle: t.documents.filtreStcw },
@@ -38,19 +37,12 @@ const FILTRES = [
   { valeur: "NATIONAL", libelle: t.documents.filtreNational },
 ];
 
-// Seuil à partir duquel un document est mis en avant comme urgent.
 const SEUIL_ALERTE_JOURS = 90;
 
-// Pastille de gauche d'une carte document. Les certificats STCW portent leur
-// code, les autres une icône de la famille correspondante.
 function PastilleDocument({ code, categorie }: { code: string; categorie: string }) {
   const fond = categorie === "MEDICAL" ? "bg-orange-ci" : categorie === "STCW" ? "bg-teal-sea" : "bg-navy";
-
-  // Les certificats STCW portent leur code, les autres familles une icône.
   return (
-    <div
-      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${fond} text-white`}
-    >
+    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${fond} text-white`}>
       {categorie === "STCW" ? (
         <span className="text-[11px] font-bold leading-none">{code.slice(0, 5)}</span>
       ) : (
@@ -60,15 +52,23 @@ function PastilleDocument({ code, categorie }: { code: string; categorie: string
   );
 }
 
+// Vignette du QR d'un document, calculée dans le navigateur.
+function VignetteQr({ url }: { url: string }) {
+  const { image, enCours } = useQrCode(url);
+  if (image) return <img src={image} alt="" className="mx-auto my-4 h-56 w-56" />;
+  if (enCours) return <div className="my-10 flex justify-center"><Spinner classe="h-10 w-10" /></div>;
+  return <div className="my-4"><Alerte ton="alerte">{t.documents.qrIndisponible}</Alerte></div>;
+}
+
 export function DocumentsPage() {
   const [documents, setDocuments] = useState<DocumentMaritime[] | null>(null);
   const [filtreActif, setFiltreActif] = useState("TOUS");
   const [formulaireOuvert, setFormulaireOuvert] = useState(false);
   const [qr, setQr] = useState<DonneesQr | null>(null);
+  const [qrEnCours, setQrEnCours] = useState<string | null>(null);
   const [erreur, setErreur] = useState("");
   const [envoi, setEnvoi] = useState(false);
   const naviguer = useNavigate();
-
   const { certificats, charger } = useReferentielStore();
 
   const [formulaire, setFormulaire] = useState({
@@ -79,38 +79,31 @@ export function DocumentsPage() {
   });
   const [fichier, setFichier] = useState<File | null>(null);
 
-  function rafraichir() {
+  const rafraichir = useCallback(function () {
     return api
       .get<DocumentMaritime[]>("/api/documents/me")
       .then(setDocuments)
-      .catch(function () {
-        setErreur(t.commun.erreurReseau);
-      });
-  }
+      .catch(function () { setErreur(t.commun.erreurReseau); });
+  }, []);
 
-  useEffect(
-    function chargerDocuments() {
-      void charger();
-      void rafraichir();
-    },
-    [charger],
-  );
+  useEffect(function chargerDocuments() {
+    void charger();
+    void rafraichir();
+  }, [charger, rafraichir]);
 
-  // Liste filtrée par catégorie, recalculée uniquement quand la source change.
-  const documentsAffiches = useMemo(
-    function filtrerDocuments() {
-      if (!documents) {
-        return [];
-      }
-      if (filtreActif === "TOUS") {
-        return documents;
-      }
-      return documents.filter(function (document) {
-        return document.certificateType.category.toUpperCase() === filtreActif;
-      });
-    },
-    [documents, filtreActif],
-  );
+  // Le coffre se met à jour pendant que le marin le regarde.
+  useFluxTempsReel({
+    evenements: EVENEMENTS_ECRAN.DOCUMENTS_MARIN,
+    surEvenement: function () { void rafraichir(); },
+  });
+
+  const documentsAffiches = useMemo(function filtrerDocuments() {
+    if (!documents) return [];
+    if (filtreActif === "TOUS") return documents;
+    return documents.filter(function (document) {
+      return document.certificateType.category.toUpperCase() === filtreActif;
+    });
+  }, [documents, filtreActif]);
 
   async function deposer() {
     setErreur("");
@@ -135,38 +128,36 @@ export function DocumentsPage() {
   }
 
   async function afficherQr(documentId: string) {
+    setErreur("");
+    setQrEnCours(documentId);
     try {
       setQr(await api.get<DonneesQr>(`/api/documents/me/${documentId}/qr`));
     } catch (err) {
       setErreur(err instanceof ErreurApi ? err.message : t.commun.erreurReseau);
+    } finally {
+      setQrEnCours(null);
     }
   }
 
-  if (!documents) {
-    return <ChargementPage />;
+  function fermerQr() {
+    setQr(null);
+    setQrEnCours(null);
   }
+
+  if (!documents) return <ChargementPage />;
 
   return (
     <div>
       <EnteteEcran titre={t.documents.titre}>
-        {/* Filtres par famille de document */}
         <div className="flex gap-2 overflow-x-auto pb-1">
           {FILTRES.map(function afficherFiltre(filtre) {
             const actif = filtre.valeur === filtreActif;
-            const compte =
-              filtre.valeur === "TOUS"
-                ? documents.length
-                : documents.filter(function (document) {
-                    return document.certificateType.category.toUpperCase() === filtre.valeur;
-                  }).length;
-
+            const compte = filtre.valeur === "TOUS"
+              ? documents.length
+              : documents.filter(function (d) { return d.certificateType.category.toUpperCase() === filtre.valeur; }).length;
             return (
-              <button
-                key={filtre.valeur}
-                type="button"
-                onClick={function () {
-                  setFiltreActif(filtre.valeur);
-                }}
+              <button key={filtre.valeur} type="button"
+                onClick={function () { setFiltreActif(filtre.valeur); }}
                 className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${actif ? "bg-white/20 text-white" : "bg-white/[0.08] text-white/60"}`}
               >
                 {filtre.libelle} ({compte})
@@ -179,87 +170,37 @@ export function DocumentsPage() {
       <div className="space-y-3">
         {erreur && <Alerte ton="erreur">{erreur}</Alerte>}
 
-        <Button
-          pleineLargeur
-          variante={formulaireOuvert ? "discret" : "principal"}
-          onClick={function () {
-            setFormulaireOuvert(!formulaireOuvert);
-          }}
-        >
+        <Button pleineLargeur variante={formulaireOuvert ? "discret" : "principal"}
+          onClick={function () { setFormulaireOuvert(!formulaireOuvert); }}>
           {formulaireOuvert ? t.commun.annuler : t.documents.ajouter}
         </Button>
 
         {formulaireOuvert && (
           <Card className="space-y-4">
-            <SelectField
-              label={t.documents.type}
-              value={formulaire.certificateTypeId}
-              onChange={function (evenement) {
-                setFormulaire({ ...formulaire, certificateTypeId: evenement.target.value });
-              }}
-              obligatoire
-            >
+            <SelectField label={t.documents.type} value={formulaire.certificateTypeId}
+              onChange={function (e) { setFormulaire({ ...formulaire, certificateTypeId: e.target.value }); }}
+              obligatoire>
               <option value="">—</option>
-              {certificats?.map(function afficherOption(certificat) {
-                return (
-                  <option key={certificat.id} value={certificat.id}>
-                    {certificat.label}
-                  </option>
-                );
-              })}
+              {certificats?.map(function (c) { return <option key={c.id} value={c.id}>{c.label}</option>; })}
             </SelectField>
-
-            <InputField
-              label={t.documents.numero}
-              value={formulaire.number}
-              onChange={function (evenement) {
-                setFormulaire({ ...formulaire, number: evenement.target.value });
-              }}
-            />
-
+            <InputField label={t.documents.numero} value={formulaire.number}
+              onChange={function (e) { setFormulaire({ ...formulaire, number: e.target.value }); }} />
             <div className="grid grid-cols-2 gap-3">
-              <InputField
-                label={t.documents.delivreLe}
-                type="date"
-                value={formulaire.issueDate}
-                onChange={function (evenement) {
-                  setFormulaire({ ...formulaire, issueDate: evenement.target.value });
-                }}
-              />
-              <InputField
-                label={t.documents.expireLe}
-                type="date"
-                value={formulaire.expiryDate}
-                onChange={function (evenement) {
-                  setFormulaire({ ...formulaire, expiryDate: evenement.target.value });
-                }}
-              />
+              <InputField label={t.documents.delivreLe} type="date" value={formulaire.issueDate}
+                onChange={function (e) { setFormulaire({ ...formulaire, issueDate: e.target.value }); }} />
+              <InputField label={t.documents.expireLe} type="date" value={formulaire.expiryDate}
+                onChange={function (e) { setFormulaire({ ...formulaire, expiryDate: e.target.value }); }} />
             </div>
-
-            <InputField
-              label={t.documents.fichier}
-              aide={t.documents.fichierAide}
-              type="file"
-              accept="image/jpeg,image/png,application/pdf"
-              onChange={function (evenement) {
-                setFichier(evenement.target.files?.[0] ?? null);
-              }}
-            />
-
-            <Button
-              pleineLargeur
-              chargement={envoi}
-              disabled={!formulaire.certificateTypeId}
-              onClick={deposer}
-            >
+            <InputField label={t.documents.fichier} aide={t.documents.fichierAide}
+              type="file" accept="image/jpeg,image/png,application/pdf"
+              onChange={function (e) { setFichier(e.target.files?.[0] ?? null); }} />
+            <Button pleineLargeur chargement={envoi} disabled={!formulaire.certificateTypeId} onClick={deposer}>
               {t.commun.enregistrer}
             </Button>
           </Card>
         )}
 
-        {documentsAffiches.length === 0 ? (
-          <EtatVide message={t.documents.aucun} />
-        ) : (
+        {documentsAffiches.length === 0 ? <EtatVide message={t.documents.aucun} /> : (
           documentsAffiches.map(function afficherDocument(document) {
             const statut = document.statutEffectif ?? document.status;
             const jours = document.joursRestants;
@@ -267,20 +208,13 @@ export function DocumentsPage() {
             const verifie = statut === "VERIFIED" || statut === "OFFICIAL_DIGITAL";
 
             return (
-              <div
-                key={document.id}
-                className={`flex gap-3.5 rounded-carte border p-4 ${urgent ? "border-[1.5px] border-orange-ci bg-alerte-soft/40" : "border-bordure bg-white"}`}
-              >
-                <PastilleDocument
-                  code={document.certificateType.code}
-                  categorie={document.certificateType.category.toUpperCase()}
-                />
+              <div key={document.id}
+                className={`flex gap-3.5 rounded-carte border p-4 ${urgent ? "border-[1.5px] border-orange-ci bg-alerte-soft/40" : "border-bordure bg-white"}`}>
+                <PastilleDocument code={document.certificateType.code} categorie={document.certificateType.category.toUpperCase()} />
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-semibold leading-tight text-navy">
-                      {document.certificateType.label}
-                    </p>
+                    <p className="text-sm font-semibold leading-tight text-navy">{document.certificateType.label}</p>
                     {urgent && typeof jours === "number" ? (
                       <span className="shrink-0 rounded px-2 py-0.5 text-[10px] font-bold uppercase text-orange-ci ring-1 ring-orange-ci/30">
                         {jours} {t.commun.jours}
@@ -292,51 +226,43 @@ export function DocumentsPage() {
 
                   {document.number && (
                     <p className="matricule mt-1 text-xs text-ardoise">
-                      {document.number}
-                      {document.certificateType.category
-                        ? `, ${document.certificateType.category}`
-                        : ""}
+                      {document.number}{document.certificateType.category ? `, ${document.certificateType.category}` : ""}
                     </p>
                   )}
 
-                  <p
-                    className={`mt-0.5 text-[11px] ${urgent ? "font-medium text-orange-ci" : "text-ardoise"}`}
-                  >
+                  <p className={`mt-0.5 text-[11px] ${urgent ? "font-medium text-orange-ci" : "text-ardoise"}`}>
                     {t.documents.expireLe} {dateCourte(document.expiryDate)}
                   </p>
 
-                  {/* Marque de vérification par l'autorité, gage d'authenticité */}
                   {verifie && (
                     <div className="mt-2 flex items-center gap-1.5">
                       <Icone nom="verifie" taille={14} className="shrink-0 text-teal-sea" />
-                      <span className="text-[10px] font-medium text-teal-sea">
-                        {t.documents.verifieParDgam}
-                      </span>
+                      <span className="text-[10px] font-medium text-teal-sea">{t.documents.verifieParDgam}</span>
                     </div>
                   )}
 
                   {urgent && (
-                    <button
-                      type="button"
-                      onClick={function () {
-                        naviguer("/demandes/nouvelle");
-                      }}
-                      className="mt-2.5 w-full rounded-lg bg-orange-ci py-2 text-xs font-semibold text-white"
-                    >
+                    <button type="button" onClick={function () { naviguer("/demandes/nouvelle"); }}
+                      className="mt-2.5 w-full rounded-lg bg-orange-ci py-2 text-xs font-semibold text-white">
                       {t.documents.renouveler}
                     </button>
                   )}
 
-                  {document.verificationCode && !urgent && (
-                    <button
-                      type="button"
-                      onClick={function () {
-                        void afficherQr(document.id);
-                      }}
-                      className="mt-2.5 w-full rounded-lg border border-bordure py-2 text-xs font-semibold text-navy transition-colors hover:bg-navy-soft"
-                    >
+                  {/* Le QR reste accessible même sur un document proche de
+                      l'échéance : il est encore opposable à un contrôle. */}
+                  {document.verificationCode && (
+                    <button type="button" disabled={qrEnCours === document.id}
+                      onClick={function () { void afficherQr(document.id); }}
+                      className="mt-2.5 w-full rounded-lg border border-bordure py-2 text-xs font-semibold text-navy transition-colors hover:bg-navy-soft disabled:opacity-50">
                       {t.documents.voirQr}
                     </button>
+                  )}
+
+                  {/* Le marin consulte la pièce qu'il a lui-même déposée */}
+                  {document.fileUrl && (
+                    <div className="mt-2.5">
+                      <PieceJointe fileUrl={document.fileUrl} nom={`${document.certificateType.code}.pdf`} libelleLien={t.documents.fichier} />
+                    </div>
                   )}
                 </div>
               </div>
@@ -345,36 +271,28 @@ export function DocumentsPage() {
         )}
       </div>
 
-      {/* Le QR est affiché en superposition plein écran : à présenter
-          directement au contrôleur, sans quitter la liste. */}
-      {qr && (
+      {/* Le QR est affiché en superposition plein écran. */}
+      {(qr || qrEnCours) && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-navy/80 p-5">
           <Card className="w-full max-w-sm text-center">
             <p className="font-titre text-base font-semibold text-navy">{t.documents.qrTitre}</p>
-            <p className="mt-1 text-xs text-ardoise">{qr.certificat}</p>
+            <p className="mt-1 text-xs text-ardoise">{qr ? qr.certificat : t.commun.chargement}</p>
 
-            {qr.image ? (
-              <img src={qr.image} alt="" className="mx-auto my-4 h-56 w-56" />
+            {qr ? (
+              <VignetteQr url={qr.url} />
             ) : (
-              <div className="my-10 flex justify-center">
-                <Spinner classe="h-10 w-10" />
-              </div>
+              <div className="my-10 flex justify-center"><Spinner classe="h-10 w-10" /></div>
             )}
 
-            <p className="text-xs text-ardoise">{t.documents.codeVerification}</p>
-            <p className="matricule text-xl font-bold text-navy">{qr.code}</p>
-            <p className="mt-3 text-[11px] leading-relaxed text-ardoise">
-              {t.documents.qrInstruction}
-            </p>
+            {qr && (
+              <>
+                <p className="text-xs text-ardoise">{t.documents.codeVerification}</p>
+                <p className="matricule text-xl font-bold text-navy">{qr.code}</p>
+                <p className="mt-3 text-[11px] leading-relaxed text-ardoise">{t.documents.qrInstruction}</p>
+              </>
+            )}
 
-            <Button
-              variante="secondaire"
-              pleineLargeur
-              className="mt-4"
-              onClick={function () {
-                setQr(null);
-              }}
-            >
+            <Button variante="secondaire" pleineLargeur className="mt-4" onClick={fermerQr}>
               {t.commun.fermer}
             </Button>
           </Card>

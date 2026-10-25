@@ -144,6 +144,27 @@ export const declarerEmbarquement = async (
     status: EMBARKATION_STATUS.DECLARED,
   });
 
+  // La déclaration est journalisée et diffusée : les écrans ouverts sur le
+  // dossier voient la ligne apparaître sans rechargement.
+  await logAction({
+    actorType: "MARIN",
+    actorId: marinId,
+    action: AUDIT_ACTION.EMBARKATION_DECLARE,
+    targetType: "Embarkation",
+    targetId: embarquement.id,
+    metadata: { navire: embarquement.vesselName, jours: embarquement.days },
+  });
+
+  diffuser({
+    evenement: EVENEMENT.EMBARQUEMENT_STATUT,
+    donnees: {
+      embarquementId: embarquement.id,
+      statut: EMBARKATION_STATUS.DECLARED,
+      navire: embarquement.vesselName,
+    },
+    marinId,
+  });
+
   return embarquement;
 };
 

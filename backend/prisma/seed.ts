@@ -187,6 +187,11 @@ const principal = async () => {
   // Mot de passe commun en démonstration, à changer au premier déploiement.
   const motDePasse = await hashPassword("Pgmi2026!");
 
+  // Mot de passe des dossiers marins du jeu de données. Le marin se connecte
+  // désormais par numéro et mot de passe : sans cette valeur, aucun compte
+  // du seed ne serait utilisable après la bascule.
+  const motDePasseMarin = await hashPassword("Marin2026!");
+
   const agentAbidjan = await prisma.agent.create({
     data: {
       authorityId: antenneAbidjan.id,
@@ -270,6 +275,8 @@ const principal = async () => {
       authorityId: dgam.id,
       matricule: "CI-MAR-2024-0847",
       phone: "+2250701020304",
+      passwordHash: motDePasseMarin,
+      passwordUpdatedAt: new Date(),
       email: "kouassi.yao@example.ci",
       firstName: "Kouassi Yao",
       lastName: "Jean",
@@ -379,6 +386,8 @@ const principal = async () => {
       authorityId: dgam.id,
       matricule: "CI-MAR-2023-0412",
       phone: "+2250506070809",
+      passwordHash: motDePasseMarin,
+      passwordUpdatedAt: new Date(),
       firstName: "Aminata",
       lastName: "Bakayoko",
       birthDate: date("1992-09-02"),
@@ -421,6 +430,8 @@ const principal = async () => {
     data: {
       authorityId: dgam.id,
       phone: "+2250102030405",
+      passwordHash: motDePasseMarin,
+      passwordUpdatedAt: new Date(),
       firstName: "Ibrahim",
       lastName: "Ouattara",
       birthDate: date("1997-01-24"),
@@ -437,6 +448,8 @@ const principal = async () => {
     data: {
       authorityId: dgam.id,
       phone: "+2250708091011",
+      passwordHash: motDePasseMarin,
+      passwordUpdatedAt: new Date(),
       firstName: "Affoué Marie",
       lastName: "Kouadio",
       birthDate: date("2003-06-18"),
@@ -581,8 +594,11 @@ const principal = async () => {
   console.log("ARSTM scolarité   : scolarite@arstm.ci    / Pgmi2026!");
   console.log("ARSTM direction   : direction@arstm.ci    / Pgmi2026!");
   console.log("--------------------------------------------------");
-  console.log("Marin de démonstration : +2250701020304 (CI-MAR-2024-0847)");
-  console.log("Le code OTP s'affiche dans la réponse de l'API en développement.");
+  console.log("Marins (mot de passe : Marin2026!) :");
+  console.log("  +2250701020304 (CI-MAR-2024-0847 - Kouassi Yao Jean)");
+  console.log("  +2250506070809 (CI-MAR-2023-0412 - Aminata Bakayoko)");
+  console.log("  +2250102030405 (Ibrahim Ouattara)");
+  console.log("  +2250708091011 (Affoué Marie Kouadio)");
   console.log(`Superviseur créé : ${superviseur.email}`);
 };
 

@@ -33,7 +33,7 @@ export const fr = {
     non: "Non",
     deconnexion: "Se déconnecter",
     fermer: "Fermer",
-    modeDemonstration: "Mode démonstration, aucun débit réel.",
+    actualiser: "Actualiser",
   },
 
   auth: {
@@ -41,29 +41,40 @@ export const fr = {
     sousTitreMarin: "Accédez à vos certificats, où que vous soyez.",
     telephone: "Numéro de téléphone",
     telephoneAide: "Format : +225 07 00 00 00 00",
-    recevoirCode: "Recevoir mon code",
-    canalWhatsapp: "Par WhatsApp",
-    canalSms: "Par SMS",
-    canalSmsIndisponible: "Le SMS sera disponible prochainement. Utilisez WhatsApp pour recevoir votre code.",
-    choixCanal: "Recevoir mon code",
-    codeEnvoye: "Code envoyé par SMS",
-    codeEnvoyeWhatsapp: "Code envoyé par WhatsApp",
-    codeInstruction: "Saisissez le code à 6 chiffres reçu au",
-    codeChamp: "Code de vérification",
-    validerCode: "Valider",
-    renvoyerCode: "Renvoyer le code",
-    changerNumero: "Changer de numéro",
+    motDePasse: "Mot de passe",
+    motDePasseAide: "8 caractères minimum.",
+    motDePasseConfirmation: "Confirmer le mot de passe",
+    motDePasseDifferent: "Les deux mots de passe ne sont pas identiques.",
+    motDePasseTropCourt: "Le mot de passe doit comporter au moins 8 caractères.",
+    afficherMotDePasse: "Afficher le mot de passe",
+    masquerMotDePasse: "Masquer le mot de passe",
+    connexion: "Se connecter",
     creerDossier: "Créer mon dossier",
     dejaInscrit: "J'ai déjà un dossier",
     espaceAgent: "Espace agent",
     espaceMarins: "Espace marins",
     email: "Adresse professionnelle",
-    motDePasse: "Mot de passe",
-    connexion: "Se connecter",
-    codeDeveloppement: "Code de développement",
     prefixePays: "+225",
+
+    // Mot de passe oublié. Seul parcours qui déclenche encore un envoi :
+    // les libellés le disent au marin, pour qu'il n'y revienne pas sans raison.
+    oublie: "Mot de passe oublié ?",
+    oublieTitre: "Réinitialiser mon mot de passe",
+    oublieExplication:
+      "Un code à 6 chiffres est envoyé au numéro de votre dossier. Il reste valable 10 minutes.",
+    oublieEnvoyer: "Recevoir mon code",
+    oublieCanal: "Recevoir le code par",
+    canalWhatsapp: "WhatsApp",
+    canalSms: "SMS",
+    canalSmsIndisponible: "Le SMS sera disponible prochainement. Utilisez WhatsApp.",
+    codeChamp: "Code reçu",
+    codeEnvoye: "Si un dossier existe pour ce numéro, le code vient d'être envoyé.",
     expireDans: "Le code expire dans",
-    renvoyerWhatsapp: "Renvoyer par WhatsApp",
+    renvoyerCode: "Renvoyer le code",
+    nouveauMotDePasse: "Nouveau mot de passe",
+    definirMotDePasse: "Définir mon mot de passe",
+    retourConnexion: "Revenir à la connexion",
+    codeDeveloppement: "Code de développement",
   },
 
   // Filet d'erreur de rendu
@@ -73,17 +84,6 @@ export const fr = {
       "L'écran n'a pas pu s'afficher. Rechargez la page, puis vérifiez l'état de votre dossier avant de reprendre votre saisie.",
     recharger: "Recharger la page",
     detailTechnique: "Détail technique",
-  },
-
-  demonstration: {
-    titre: "Instance de démonstration",
-    explication:
-      "Cette instance présente la plateforme avec des données fictives. Aucun SMS n'est envoyé et aucun paiement n'est débité.",
-    codeSms: "Code SMS :",
-    compteAgent: "Agent :",
-    motDePasse: "Mot de passe :",
-    precisionAgent:
-      "Ces comptes n'existent que sur l'instance de démonstration. L'instance réelle utilise les comptes créés par la DGAM.",
   },
 
   inscription: {
@@ -97,9 +97,25 @@ export const fr = {
     piece: "Numéro CNI ou passeport",
     emailFacultatif: "Adresse email (facultatif)",
     region: "Région de rattachement",
+    identifiants: "Identifiants de connexion",
+    identifiantsAide:
+      "Vous vous connecterez avec ce numéro et ce mot de passe. Notez-les avant de valider.",
     valider: "Créer mon dossier",
     rappelGuichet:
       "Votre dossier sera activé après vérification de votre identité au guichet DGAM. Votre matricule vous sera alors attribué.",
+  },
+
+  // Pièces jointes du registre. Consultation et enregistrement passent par
+  // une route authentifiée : les messages d'échec sont donc communs à tous
+  // les écrans qui en affichent une.
+  pieces: {
+    telecharger: "Enregistrer",
+    nomParDefaut: "Pièce justificative",
+    aucunFichier: "Aucun fichier joint.",
+    accesRefuse: "Votre habilitation ne permet pas de consulter cette pièce.",
+    indisponible: "Pièce introuvable ou momentanément indisponible.",
+    sessionExpiree: "Session expirée. Reconnectez-vous pour consulter cette pièce.",
+    titreDossier: "Pièces du dossier",
   },
 
   navigation: {
@@ -221,6 +237,13 @@ export const fr = {
     periode: "Période",
     joursColonne: "Jours",
     preuveSoumise: "Preuve soumise, en attente de vérification",
+    dossierASoumettre: "Déposez vos justificatifs puis soumettez ce dossier à la DGAM.",
+    dossierEnAttente: "Dossier soumis. La DGAM vérifiera vos jours de mer sur pièces.",
+    dossierRejete: "Dossier refusé. Corrigez les pièces indiquées puis soumettez de nouveau.",
+    piecesDeposees: "Pièces déposées",
+    historique: "Historique du dossier",
+    declarationAide:
+      "Après enregistrement, la ligne apparaît ci-dessous et vous pourrez y déposer vos justificatifs.",
     verifiePar: "Vérifié par la DGAM",
     statut: {
       DECLARED: "Déclaré",
@@ -320,6 +343,11 @@ export const fr = {
   },
 
   paiement: {
+    // Le serveur signale lui-même qu'il tourne sur un fournisseur de test.
+    // Le marin doit le lire : sans cela, un règlement accepté sans débit
+    // réel passerait pour un paiement abouti.
+    modeBacASable:
+      "Passerelle de paiement en mode test : aucun montant n'est réellement débité.",
     titre: "Paiement des frais",
     montant: "Montant à régler",
     choisirOperateur: "Choisir un opérateur",
@@ -400,6 +428,9 @@ export const fr = {
     modifier: "Modifier",
     qrProfessionnel: "Mon QR Code professionnel",
     partagerQr: "Partager mon QR Code",
+    qrIndisponible:
+      "Votre carte vérifiable sera disponible dès l'activation de votre dossier au guichet DGAM.",
+    qrAide: "Un inspecteur qui scanne ce code lit votre identité professionnelle, sans votre dossier complet.",
     region: "Région",
     photoTitre: "Photo d'identité",
     photoAide: "JPG ou PNG, 2 Mo maximum. Visage dégagé, de face.",
@@ -452,6 +483,17 @@ export const fr = {
     nouveauxCeMois: "nouveaux ce mois",
     sousQuatreVingtDix: "sous 90 jours",
     tauxAuthenticite: "authentiques",
+    dossierMarin: "Dossier du marin",
+    documentsDuMarin: "Documents déposés",
+    serviceMerDuMarin: "Service en mer",
+    aucunDocument: "Aucun document dans ce dossier.",
+    aucunEmbarquement: "Aucun embarquement déclaré.",
+    chargementDossier: "Ouverture du dossier…",
+    prendreEnCharge: "Prendre en charge et instruire",
+    piecesJointes: "Pièces jointes à la demande",
+    aucunePieceJointe: "Aucune pièce jointe à cette demande.",
+    etapeBloquee: "Cette action n'est pas disponible à ce stade du dossier.",
+    tempsReelActif: "Mise à jour en direct",
   },
 
   arstm: {

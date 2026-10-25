@@ -105,94 +105,14 @@
       En cas de doute sur un document, contactez la DGAM.
     </footer>
 
-    <script>
-      // Le code est le dernier segment de l'URL : /v/A3F7K2
-      var code = window.location.pathname.split("/").filter(Boolean).pop() || "";
-      var contenu = document.getElementById("contenu");
+    <!--
+      Le script vit dans /verify.js et non ici.
 
-      // Échappement systématique : aucune donnée du serveur n'est injectée
-      // en HTML sans passer par ici.
-      function echapper(valeur) {
-        return String(valeur === null || valeur === undefined ? "" : valeur)
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;");
-      }
-
-      function ligne(libelle, valeur, mono) {
-        if (!valeur) return "";
-        return (
-          '<div class="ligne"><dt>' +
-          echapper(libelle) +
-          "</dt><dd" +
-          (mono ? ' class="mono"' : "") +
-          ">" +
-          echapper(valeur) +
-          "</dd></div>"
-        );
-      }
-
-      function afficher(donnees) {
-        var classe = donnees.valide
-          ? "valide"
-          : donnees.statut === "EXPIRED" || donnees.statut === "REPLACED"
-            ? "attention"
-            : "invalide";
-        var pictogramme = donnees.valide ? "✓" : donnees.statut === "EXPIRED" ? "!" : "×";
-
-        var html =
-          '<div class="bandeau ' +
-          classe +
-          '"><div class="pictogramme">' +
-          pictogramme +
-          "</div><h2>" +
-          echapper(donnees.libelleStatut) +
-          "</h2><p>" +
-          echapper(donnees.message) +
-          "</p></div>";
-
-        if (donnees.document) {
-          var doc = donnees.document;
-          html += '<div class="carte">';
-          if (doc.photoUrl) {
-            html += '<img class="photo" alt="" src="' + echapper(doc.photoUrl) + '" />';
-          }
-          html += "<dl>";
-          html += ligne("Document", doc.certificat);
-          html += ligne("Titulaire", doc.titulaire);
-          html += ligne("Matricule", doc.matricule, true);
-          html += ligne("Fonction", doc.fonction);
-          html += ligne("Numéro", doc.numero, true);
-          html += ligne("Délivré le", doc.delivreLe);
-          html += ligne("Expire le", doc.expireLe);
-          html += ligne("Autorité", doc.autorite);
-          html += ligne("Code de vérification", doc.code, true);
-          if (donnees.remplacePar) {
-            html += ligne("Remplacé par le code", donnees.remplacePar, true);
-          }
-          html += "</dl></div>";
-        }
-
-        contenu.className = "";
-        contenu.innerHTML = html;
-      }
-
-      if (!code) {
-        contenu.textContent = "Aucun code de vérification fourni.";
-      } else {
-        fetch("/api/v/" + encodeURIComponent(code))
-          .then(function (reponse) {
-            return reponse.json();
-          })
-          .then(function (corps) {
-            afficher(corps.data);
-          })
-          .catch(function () {
-            contenu.textContent =
-              "Vérification impossible. Contrôlez votre connexion et réessayez.";
-          });
-      }
-    </script>
+      La politique de sécurité du contenu posée dans app.ts n'autorise que
+      scriptSrc 'self' : un script en ligne est refusé par le navigateur, et
+      la page restait figée sur « Vérification en cours ». C'est la page la
+      plus exposée de la plateforme, la directive ne doit pas être rouverte.
+    -->
+    <script src="/verify.js" defer></script>
   </body>
 </html>

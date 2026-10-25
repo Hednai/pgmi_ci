@@ -6,12 +6,9 @@
 // a changé, et rappelle l'API. C'est volontaire. Un écran qui recalculerait
 // son état à partir du message dupliquerait les règles du serveur et
 // finirait par diverger ; ici le serveur reste la seule source de vérité.
-//
-// Hors mode démonstration uniquement : le mode démonstration n'a pas de
-// serveur, donc pas de flux.
 // ============================================
 import { useEffect, useRef, useState } from "react";
-import { api, estModeDemo, jetons } from "../lib/apiClient.js";
+import { api, jetons } from "../lib/apiClient.js";
 
 // Délai avant une nouvelle tentative d'ouverture quand le ticket a été
 // refusé ou que le réseau est tombé, en millisecondes.
@@ -54,7 +51,7 @@ export function useFluxTempsReel(options: OptionsFlux): { connecte: boolean } {
 
   useEffect(
     function abonner() {
-      if (estModeDemo() || !actif || !jetons.lireAcces()) {
+      if (!actif || !jetons.lireAcces()) {
         return;
       }
 
