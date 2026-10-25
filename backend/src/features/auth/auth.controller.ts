@@ -18,7 +18,7 @@ import { permissionsDuRole } from "../../domain/permissions.js";
 
 // POST /api/auth/otp/request
 export const demanderOtp = asyncHandler(async (req: Request, res: Response) => {
-  const resultat = await emettreOtp(req.body.phone);
+  const resultat = await emettreOtp(req.body.phone, req.body.canal);
   res.status(200).json({ success: true, data: resultat });
 });
 

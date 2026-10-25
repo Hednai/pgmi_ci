@@ -19,6 +19,7 @@
 import {
   DEMANDES_MARIN,
   DOCUMENTS_MARIN,
+  MARIN_DEMO,
   VERIFICATIONS_PUBLIQUES,
   VERIFICATION_INTROUVABLE,
 } from "./donneesDemo.js";
@@ -302,6 +303,31 @@ const documentValide = (document: DocumentMaritime): boolean => {
 // plateforme existe pour détecter.
 export const verifierCodeDemo = (code: string): ResultatVerification => {
   const normalise = code.trim().toUpperCase();
+
+  // Recherche par matricule (scan du QR code profil du marin)
+  if (normalise.startsWith("CI-MAR-") && MARIN_DEMO.matricule === normalise) {
+    return {
+      trouve: true,
+      statut: MARIN_DEMO.status,
+      libelleStatut: MARIN_DEMO.isActive ? "Marin vérifié" : "Marin en attente",
+      valide: MARIN_DEMO.isActive,
+      message: MARIN_DEMO.isActive
+        ? "Ce marin est enregistré et actif auprès de la Direction Générale des Affaires Maritimes."
+        : "Ce marin est en attente d'activation par la DGAM.",
+      document: {
+        certificat: "Carte professionnelle maritime",
+        code: "CPM",
+        titulaire: MARIN_DEMO.fullName,
+        matricule: MARIN_DEMO.matricule,
+        numero: MARIN_DEMO.matricule,
+        delivreLe: MARIN_DEMO.createdAt,
+        expireLe: null,
+        fonction: MARIN_DEMO.fonction?.label ?? null,
+        photoUrl: MARIN_DEMO.photoUrl,
+        autorite: "DGAM - République de Côte d'Ivoire",
+      },
+    };
+  }
 
   const prepare = VERIFICATIONS_PUBLIQUES[normalise];
 

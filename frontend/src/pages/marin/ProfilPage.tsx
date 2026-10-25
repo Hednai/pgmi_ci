@@ -16,6 +16,7 @@ import { Icone } from "../../components/atoms/Icone.js";
 import { InputField, SelectField } from "../../components/atoms/Field.js";
 import { Alerte } from "../../components/atoms/Feedback.js";
 import { dateCourte, initiales, telephone } from "../../lib/format.js";
+import { useQrCode } from "../../hooks/useQrCode.js";
 import type { Marin } from "../../types/api.js";
 
 // Ligne d'information de la carte d'identité, séparée par un filet.
@@ -83,6 +84,12 @@ export function ProfilPage() {
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
   const [envoi, setEnvoi] = useState(false);
+
+  // URL de vérification encodée dans le QR code scannable
+  const urlVerification = marin?.matricule
+    ? `${window.location.origin}/verification?matricule=${encodeURIComponent(marin.matricule)}`
+    : null;
+  const qrImage = useQrCode(urlVerification);
 
   useEffect(
     function chargerReferentiels() {
@@ -223,9 +230,17 @@ export function ProfilPage() {
         <Card className="text-center">
           <h2 className="text-sm font-semibold text-navy">{t.profil.qrProfessionnel}</h2>
 
-          <div className="mx-auto my-4 flex h-40 w-40 items-center justify-center rounded-xl border-2 border-navy/10 bg-fond">
-            <Icone nom="qrCode" taille={72} epaisseur={1.2} className="text-navy/25" />
-          </div>
+          {qrImage ? (
+            <img
+              src={qrImage}
+              alt={`QR code de vérification ${marin.matricule ?? ""}`}
+              className="mx-auto my-4 h-40 w-40 rounded-xl"
+            />
+          ) : (
+            <div className="mx-auto my-4 flex h-40 w-40 items-center justify-center rounded-xl border-2 border-navy/10 bg-fond">
+              <Icone nom="qrCode" taille={72} epaisseur={1.2} className="text-navy/25" />
+            </div>
+          )}
 
           <p className="matricule text-xs text-ardoise">
             pgmi.ci/v/{marin.matricule ? marin.matricule.slice(-9) : "…"}

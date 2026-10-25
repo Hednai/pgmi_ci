@@ -6,7 +6,7 @@
 // plus légère. Cet écran couvre le cas où le QR est illisible et où
 // l'inspecteur recopie le code imprimé.
 // ============================================
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { t } from "../../i18n/index.js";
 import { api, ErreurApi } from "../../lib/apiClient.js";
 import { Card } from "../../components/atoms/Card.js";
@@ -21,14 +21,16 @@ export const VerificationPage = () => {
   const [erreur, setErreur] = useState("");
   const [chargement, setChargement] = useState(false);
 
-  const verifier = async () => {
+  const verifier = async (valeur?: string) => {
+    const codeEffectif = (valeur ?? code).trim().toUpperCase();
+    if (!codeEffectif) return;
     setErreur("");
     setResultat(null);
     setChargement(true);
     try {
       setResultat(
         await api.get<ResultatVerification>(
-          `/api/verification/${encodeURIComponent(code.trim().toUpperCase())}`,
+          `/api/verification/${encodeURIComponent(codeEffectif)}`,
           true,
         ),
       );
@@ -38,6 +40,17 @@ export const VerificationPage = () => {
       setChargement(false);
     }
   };
+
+  // Lancement automatique quand l'URL contient un matricule (scan QR)
+  useEffect(function verifierDepuisUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const matricule = params.get("matricule");
+    if (matricule) {
+      setCode(matricule.toUpperCase());
+      void verifier(matricule);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="min-h-screen bg-fond">
@@ -66,7 +79,9 @@ export const VerificationPage = () => {
             taille="lg"
             chargement={chargement}
             disabled={code.trim().length < 4}
-            onClick={verifier}
+            onClick={function () {
+              void verifier();
+            }}
           >
             {t.verification.verifier}
           </Button>

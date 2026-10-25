@@ -20,6 +20,8 @@ export function ConnexionAgentPage() {
   const [motDePasse, setMotDePasse] = useState("");
   const [erreur, setErreur] = useState("");
   const [chargement, setChargement] = useState(false);
+  // Bascule la visibilité du mot de passe
+  const [motDePasseVisible, setMotDePasseVisible] = useState(false);
 
   // Identifiants de recette, nuls hors instance de démonstration
   const identifiantsDemo = useIdentifiantsDemo();
@@ -72,17 +74,34 @@ export function ConnexionAgentPage() {
             onChange={(evenement) => setEmail(evenement.target.value)}
             obligatoire
           />
-          <InputField
-            label={t.auth.motDePasse}
-            type="password"
-            autoComplete="current-password"
-            value={motDePasse}
-            onChange={(evenement) => setMotDePasse(evenement.target.value)}
-            onKeyDown={(evenement) => {
-              if (evenement.key === "Enter") void soumettre();
-            }}
-            obligatoire
-          />
+          {/* Champ mot de passe avec bouton de visibilité */}
+          <div className="space-y-1.5">
+            <label htmlFor="champ-mdp" className="block text-sm font-medium text-navy">
+              {t.auth.motDePasse}
+              <span className="ml-1 text-erreur">*</span>
+            </label>
+            <div className="relative">
+              <input
+                id="champ-mdp"
+                type={motDePasseVisible ? "text" : "password"}
+                autoComplete="current-password"
+                value={motDePasse}
+                onChange={(evenement) => setMotDePasse(evenement.target.value)}
+                onKeyDown={(evenement) => {
+                  if (evenement.key === "Enter") void soumettre();
+                }}
+                className="w-full rounded-xl border border-bordure bg-white px-3.5 py-2.5 pr-10 text-sm text-navy outline-none transition-colors placeholder:text-ardoise/70 focus:border-navy-light focus:ring-2 focus:ring-navy-light/20"
+              />
+              <button
+                type="button"
+                onClick={() => setMotDePasseVisible((precedent) => !precedent)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-ardoise hover:text-navy"
+                aria-label={motDePasseVisible ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              >
+                <Icone nom={motDePasseVisible ? "oeilFerme" : "oeilOuvert"} taille={18} />
+              </button>
+            </div>
+          </div>
 
           {identifiantsDemo && (
             <BandeauDemo

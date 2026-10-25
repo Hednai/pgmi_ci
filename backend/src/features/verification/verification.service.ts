@@ -82,6 +82,71 @@ const LIBELLES: Record<string, { libelle: string; message: string; valide: boole
   },
 };
 
+// Vérification par matricule (scan du QR profil du marin).
+// Retourne l'identité professionnelle du marin sans document spécifique.
+const verifierParMatricule = async (
+  matricule: string,
+  req?: Request,
+): Promise<ResultatVerification> => {
+  const marin = await prisma.marin.findUnique({
+    where: { matricule },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      matricule: true,
+      status: true,
+      photoUrl: true,
+      createdAt: true,
+      fonction: { select: { label: true } },
+      authority: { select: { name: true } },
+    },
+  });
+
+  await logAction({
+    actorType: "PUBLIC",
+    action: AUDIT_ACTION.QR_VERIFICATION,
+    targetType: "Marin",
+    targetId: marin?.id,
+    metadata: { matricule, trouve: Boolean(marin) },
+    req,
+  });
+
+  if (!marin) {
+    return {
+      trouve: false,
+      statut: "NOT_FOUND",
+      libelleStatut: "Matricule inconnu",
+      valide: false,
+      message: "Aucun marin ne correspond à ce matricule.",
+    };
+  }
+
+  const actif = marin.status === "ACTIVE";
+
+  return {
+    trouve: true,
+    statut: marin.status,
+    libelleStatut: actif ? "Marin vérifié" : "Marin en attente",
+    valide: actif,
+    message: actif
+      ? "Ce marin est enregistré et actif auprès de la Direction Générale des Affaires Maritimes."
+      : "Ce marin est en attente d'activation par la DGAM.",
+    document: {
+      certificat: "Carte professionnelle maritime",
+      code: "CPM",
+      numero: marin.matricule,
+      delivreLe: formaterDate(marin.createdAt),
+      expireLe: null,
+      titulaire: masquerNom(`${marin.firstName} ${marin.lastName}`),
+      matricule: marin.matricule,
+      fonction: marin.fonction?.label ?? null,
+      photoUrl: marin.photoUrl,
+      autorite: marin.authority.name,
+    },
+  };
+};
+
 // Vérifier un code. Ne lève jamais : un code inconnu est une réponse
 // métier normale, pas une erreur technique.
 export const verifierCode = async (
@@ -89,6 +154,11 @@ export const verifierCode = async (
   req?: Request,
 ): Promise<ResultatVerification> => {
   const codeNormalise = code.trim().toUpperCase();
+
+  // Un matricule commence par "CI-MAR-" : recherche par identité du marin
+  if (codeNormalise.startsWith("CI-MAR-")) {
+    return verifierParMatricule(codeNormalise, req);
+  }
 
   const document = await prisma.document.findUnique({
     where: { verificationCode: codeNormalise },

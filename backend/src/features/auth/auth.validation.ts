@@ -20,6 +20,8 @@ export const telephoneSchema = z
 
 export const demandeOtpSchema = z.object({
   phone: telephoneSchema,
+  // Canal d'envoi du code : SMS par défaut, WhatsApp si le marin est en mer
+  canal: z.enum(["SMS", "WHATSAPP"]).default("SMS"),
 });
 
 export const verificationOtpSchema = z.object({

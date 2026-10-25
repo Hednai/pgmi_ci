@@ -49,12 +49,17 @@ function EnteteInstitution() {
   );
 }
 
+// Canaux d'envoi du code OTP
+type CanalOtp = "SMS" | "WHATSAPP";
+
 export function ConnexionPage() {
   const [etape, setEtape] = useState<"telephone" | "code">("telephone");
   const [numero, setNumero] = useState("");
   const [code, setCode] = useState("");
   const [erreur, setErreur] = useState("");
   const [chargement, setChargement] = useState(false);
+  // Canal choisi par le marin pour recevoir son code
+  const [canal, setCanal] = useState<CanalOtp>("SMS");
   // Vrai tant que la vérification du code n'a pas montré l'absence de
   // dossier. L'API ne le dit plus à la demande de code : elle ne répond
   // qu'après vérification, pour ne pas devenir un annuaire des marins.
@@ -98,13 +103,15 @@ export function ConnexionPage() {
     return `${minutes}:${String(secondes).padStart(2, "0")}`;
   }
 
-  async function demanderCode() {
+  async function demanderCode(canalChoisi?: CanalOtp) {
+    const canalEffectif = canalChoisi ?? canal;
+    if (canalChoisi) setCanal(canalChoisi);
     setErreur("");
     setChargement(true);
     try {
       const reponse = await api.post<ReponseOtp>(
         "/api/auth/otp/request",
-        { phone: numeroComplet() },
+        { phone: numeroComplet(), canal: canalEffectif },
         true,
       );
       setCodeDeveloppement(reponse.codeDeveloppement);
@@ -182,16 +189,33 @@ export function ConnexionPage() {
 
               {erreur && <Alerte ton="erreur">{erreur}</Alerte>}
 
-              <Button
-                pleineLargeur
-                taille="lg"
-                chargement={chargement}
-                disabled={numero.replace(/\D/g, "").length < 8}
-                onClick={demanderCode}
-                className="shadow-lg shadow-orange-ci/25"
-              >
-                {t.auth.recevoirCode}
-              </Button>
+              {/* Choix du canal : SMS (bientôt disponible) ou WhatsApp */}
+              <p className="text-xs font-semibold text-navy">{t.auth.choixCanal}</p>
+              <div className="flex gap-3">
+                <Button
+                  pleineLargeur
+                  taille="lg"
+                  disabled
+                  className="opacity-50"
+                >
+                  {t.auth.canalSms}
+                </Button>
+                <Button
+                  pleineLargeur
+                  taille="lg"
+                  chargement={chargement}
+                  disabled={numero.replace(/\D/g, "").length < 8 || chargement}
+                  onClick={function () {
+                    void demanderCode("WHATSAPP");
+                  }}
+                  className="bg-[#25D366] shadow-lg shadow-[#25D366]/25 hover:bg-[#1da851]"
+                >
+                  {t.auth.canalWhatsapp}
+                </Button>
+              </div>
+              <p className="text-center text-[11px] text-ardoise">
+                {t.auth.canalSmsIndisponible}
+              </p>
 
               <Link
                 to="/inscription"
@@ -212,7 +236,9 @@ export function ConnexionPage() {
           ) : (
             <div className="space-y-4">
               <div className="text-center">
-                <p className="text-sm font-semibold text-navy">{t.auth.codeEnvoye}</p>
+                <p className="text-sm font-semibold text-navy">
+                  {canal === "WHATSAPP" ? t.auth.codeEnvoyeWhatsapp : t.auth.codeEnvoye}
+                </p>
                 <p className="mt-0.5 text-xs text-ardoise">
                   {t.auth.codeInstruction} {formaterTelephone(numeroComplet())}
                 </p>
@@ -275,7 +301,9 @@ export function ConnexionPage() {
 
                 <button
                   type="button"
-                  onClick={demanderCode}
+                  onClick={function () {
+                    void demanderCode();
+                  }}
                   className="font-semibold text-navy-light hover:underline"
                 >
                   {t.auth.renvoyerCode}

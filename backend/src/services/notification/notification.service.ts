@@ -21,6 +21,7 @@ import {
   consoleWhatsAppProvider,
   consoleEmailProvider,
 } from "./ConsoleProviders.js";
+import { metaWhatsAppProvider } from "./MetaWhatsAppProvider.js";
 
 // Catalogue des évènements notifiables. Le libellé sert au journal et au
 // centre de notifications du marin.
@@ -44,19 +45,36 @@ export const NOTIFICATION_EVENT = {
 export type NotificationEvent =
   (typeof NOTIFICATION_EVENT)[keyof typeof NOTIFICATION_EVENT];
 
-// Fournisseurs actifs, choisis par la configuration.
-// Les implémentations réseau seront ajoutées ici sans toucher au service.
+// ---- Sélection du fournisseur SMS ----
+// Le canal SMS est figé sur console (pas d'envoi réel) pour cette version.
+// Prochaine étape : intégrer l'API Orange SMS Côte d'Ivoire 2.0, qui
+// permet d'acheter des bundles SMS avec une carte SIM Orange et de
+// démarrer en quelques minutes, sans intermédiaire international.
+// Documentation et tarifs : https://developer.orange.com/apis/sms-ci/pricing
+// À ce moment, ajouter SMS_PROVIDER=orange dans le .env et créer
+// OrangeSmsProvider.ts sur le même modèle que MetaWhatsAppProvider.ts.
+function choisirSmsProvider(): NotificationProvider {
+  return consoleSmsProvider;
+}
+
+// Sélection du fournisseur WhatsApp selon la variable d'environnement
+function choisirWhatsAppProvider(): NotificationProvider {
+  if (env.WHATSAPP_PROVIDER === "meta") return metaWhatsAppProvider;
+  return consoleWhatsAppProvider;
+}
+
+// Fournisseurs actifs, choisis par la configuration
 const fournisseurs: Record<NotificationChannel, NotificationProvider> = {
-  SMS: consoleSmsProvider,
-  WHATSAPP: consoleWhatsAppProvider,
+  SMS: choisirSmsProvider(),
+  WHATSAPP: choisirWhatsAppProvider(),
   EMAIL: consoleEmailProvider,
 };
 
 logger.debug(
   {
-    sms: env.SMS_PROVIDER,
-    whatsapp: env.WHATSAPP_PROVIDER,
-    email: env.EMAIL_PROVIDER,
+    sms: `${env.SMS_PROVIDER} → ${fournisseurs.SMS.nom}`,
+    whatsapp: `${env.WHATSAPP_PROVIDER} → ${fournisseurs.WHATSAPP.nom}`,
+    email: `${env.EMAIL_PROVIDER} → ${fournisseurs.EMAIL.nom}`,
   },
   "Fournisseurs de notification chargés",
 );
@@ -138,8 +156,14 @@ export const notifierMarin = async (demande: DemandeNotification): Promise<void>
 
 // Envoyer un code OTP. Cas particulier : le destinataire n'est pas encore
 // forcément un marin en base, l'envoi se fait donc directement par SMS.
-export const envoyerOtp = async (telephone: string, code: string): Promise<void> => {
-  await fournisseurs.SMS.envoyer({
+// Envoyer un code OTP par le canal choisi par le marin (SMS ou WhatsApp).
+export const envoyerOtp = async (
+  telephone: string,
+  code: string,
+  canal: "SMS" | "WHATSAPP" = "SMS",
+): Promise<void> => {
+  const fournisseur = fournisseurs[canal];
+  await fournisseur.envoyer({
     destinataire: telephone,
     contenu: `PGMI : votre code de connexion est ${code}. Il expire dans 10 minutes. Ne le communiquez à personne.`,
     evenement: NOTIFICATION_EVENT.OTP_CODE,

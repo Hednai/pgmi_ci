@@ -34,6 +34,9 @@ const envSchema = z.object({
 
   AFRICAS_TALKING_API_KEY: z.string().optional(),
   AFRICAS_TALKING_USERNAME: z.string().optional(),
+  // Meta WhatsApp Cloud API
+  WHATSAPP_ACCESS_TOKEN: z.string().optional(),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
   CINETPAY_API_KEY: z.string().optional(),
   CINETPAY_SITE_ID: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),

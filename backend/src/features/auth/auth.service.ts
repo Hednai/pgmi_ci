@@ -46,7 +46,7 @@ const memeCode = (attendu: string, fourni: string): boolean => {
 // Émettre un code OTP pour un numéro. Le même appel sert à la connexion et
 // à l'inscription : le client n'a pas à savoir si le numéro existe déjà,
 // ce qui évite de transformer l'API en annuaire de marins enregistrés.
-export const emettreOtp = async (telephone: string) => {
+export const emettreOtp = async (telephone: string, canal: "SMS" | "WHATSAPP" = "SMS") => {
   const code = String(randomInt(0, 10 ** OTP_LENGTH)).padStart(OTP_LENGTH, "0");
   const expiration = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
 
@@ -64,7 +64,7 @@ export const emettreOtp = async (telephone: string) => {
     },
   });
 
-  await envoyerOtp(telephone, code);
+  await envoyerOtp(telephone, code, canal);
 
   await logAction({
     actorType: "MARIN",

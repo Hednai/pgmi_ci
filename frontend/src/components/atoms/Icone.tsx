@@ -17,6 +17,8 @@ import {
   ChevronRight,
   ClipboardList,
   Clock,
+  Eye,
+  EyeOff,
   FileText,
   FolderOpen,
   Home,
@@ -79,6 +81,8 @@ const CATALOGUE = {
   deconnexion: LogOut,
   notifications: Bell,
   autorite: Scale,
+  oeilOuvert: Eye,
+  oeilFerme: EyeOff,
 } satisfies Record<string, LucideIcon>;
 
 export type NomIcone = keyof typeof CATALOGUE;
