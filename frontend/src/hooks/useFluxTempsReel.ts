@@ -8,7 +8,7 @@
 // finirait par diverger ; ici le serveur reste la seule source de vérité.
 // ============================================
 import { useEffect, useRef, useState } from "react";
-import { api, jetons } from "../lib/apiClient.js";
+import { api, ErreurApi, jetons } from "../lib/apiClient.js";
 
 // Délai avant une nouvelle tentative d'ouverture quand le ticket a été
 // refusé ou que le réseau est tombé, en millisecondes.
@@ -104,11 +104,20 @@ export function useFluxTempsReel(options: OptionsFlux): { connecte: boolean } {
               }, DELAI_NOUVELLE_TENTATIVE_MS);
             }
           };
-        } catch {
+        } catch (erreur) {
           // Serveur injoignable ou ticket refusé : l'écran reste utilisable,
           // il se rafraîchit simplement à la navigation.
           setConnecte(false);
-          if (vivant && !attente) {
+
+          // Un 401 ou 403 signifie que le jeton d'accès est révoqué ou absent :
+          // réessayer ne peut rien donner. On arrête la boucle pour ne pas
+          // marteler le serveur après une déconnexion.
+          const estRefus =
+            erreur instanceof ErreurApi &&
+            (erreur.statut === 401 || erreur.statut === 403);
+          const jetonAbsent = !jetons.lireAcces();
+
+          if (vivant && !attente && !estRefus && !jetonAbsent) {
             attente = setTimeout(function () {
               attente = null;
               void ouvrir();
