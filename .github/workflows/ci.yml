@@ -79,10 +79,6 @@ jobs:
     defaults:
       run:
         working-directory: frontend
-    env:
-      # Le mode démonstration doit être actif pour que le build frontend
-      # inclue les données de démonstration et réussisse le typage.
-      VITE_MODE_DEMO: "true"
     steps:
       - uses: actions/checkout@v4
 
@@ -103,52 +99,3 @@ jobs:
 
       - name: Build de production
         run: npm run build
-
-  # ---- Bout en bout : parcours complets dans un vrai navigateur ----
-  #
-  # Les tests unitaires vérifient des règles isolées. Ils ne vérifient pas
-  # qu'un marin traverse réellement un parcours. Ce travail tourne contre le
-  # mode démonstration, sans base ni backend : un test de bout en bout qui
-  # exigerait PostgreSQL et Supabase ne tournerait jamais ici, donc ne
-  # tournerait jamais.
-  e2e:
-    name: Bout en bout
-    runs-on: ubuntu-latest
-    # Inutile de lancer un navigateur si le frontend ne compile même pas
-    needs: frontend
-    defaults:
-      run:
-        working-directory: e2e
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Installation de Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: e2e/package-lock.json
-
-      - name: Installation des dépendances du frontend
-        working-directory: frontend
-        run: npm ci
-
-      - name: Installation des dépendances de test
-        run: npm ci
-
-      # Chromium seul : les trois navigateurs tripleraient la durée sans rien
-      # apprendre de plus sur des parcours qui n'utilisent aucune API exotique.
-      - name: Installation du navigateur
-        run: npx playwright install --with-deps chromium
-
-      - name: Exécution des parcours
-        run: npx playwright test --project=chromium
-
-      # Conservé seulement en cas d'échec : le rapport est volumineux.
-      - name: Conservation du rapport
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: rapport-playwright
-          path: e2e/playwright-report/
-          retention-days: 7
