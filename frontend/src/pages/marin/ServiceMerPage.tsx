@@ -4,7 +4,8 @@
 // ============================================
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { t, libelle } from "../../i18n/index.js";
-import { api, ErreurApi } from "../../lib/apiClient.js";
+import { api } from "../../lib/apiClient.js";
+import { repartirErreurs, AUCUNE_ERREUR } from "../../lib/erreursFormulaire.js";
 import { useReferentielStore } from "../../stores/referentielStore.js";
 import { Card, EtatVide } from "../../components/atoms/Card.js";
 import { BadgeStatut } from "../../components/atoms/Badge.js";
@@ -50,6 +51,8 @@ export function ServiceMerPage() {
   const [dossier, setDossier] = useState<DossierServiceMer | null>(null);
   const [ouvert, setOuvert] = useState(false);
   const [erreur, setErreur] = useState("");
+  // Erreurs de validation rattachées à un champ du formulaire de déclaration
+  const [erreursChamps, setErreursChamps] = useState(AUCUNE_ERREUR.parChamp);
   const [envoi, setEnvoi] = useState(false);
   const { fonctions, charger } = useReferentielStore();
 
@@ -88,6 +91,7 @@ export function ServiceMerPage() {
 
   async function declarer() {
     setErreur("");
+    setErreursChamps(AUCUNE_ERREUR.parChamp);
     setEnvoi(true);
     try {
       await api.post("/api/sea-service/me", {
@@ -99,7 +103,11 @@ export function ServiceMerPage() {
       setFormulaire({ vesselName: "", imoNumber: "", flag: "", vesselType: "", fonctionId: "", startDate: "", endDate: "" });
       await rafraichir();
     } catch (err) {
-      setErreur(err instanceof ErreurApi ? err.message : t.commun.erreurReseau);
+      // Un refus de validation désigne le champ fautif : il s'affiche sous
+      // ce champ, et le bandeau ne reste que pour ce qui n'y est pas rattaché.
+      const erreurs = repartirErreurs(err, t.commun.erreurReseau);
+      setErreursChamps(erreurs.parChamp);
+      setErreur(erreurs.global);
     } finally {
       setEnvoi(false);
     }
@@ -132,22 +140,31 @@ export function ServiceMerPage() {
         {ouvert && (
           <Card className="space-y-4">
             <InputField label={t.serviceMer.navire} value={formulaire.vesselName}
+              erreur={erreursChamps.vesselName}
               onChange={function (e) { setFormulaire({ ...formulaire, vesselName: e.target.value }); }} obligatoire />
             <div className="grid grid-cols-2 gap-3">
-              <InputField label={t.serviceMer.imo} inputMode="numeric" value={formulaire.imoNumber}
+              {/* Le format attendu est annoncé avant l'envoi : le serveur
+                  exige sept chiffres, inutile de le faire découvrir par un refus. */}
+              <InputField label={t.serviceMer.imo} inputMode="numeric" maxLength={7}
+                aide={t.serviceMer.imoAide} erreur={erreursChamps.imoNumber}
+                value={formulaire.imoNumber}
                 onChange={function (e) { setFormulaire({ ...formulaire, imoNumber: e.target.value }); }} />
               <InputField label={t.serviceMer.pavillon} value={formulaire.flag}
+                erreur={erreursChamps.flag}
                 onChange={function (e) { setFormulaire({ ...formulaire, flag: e.target.value }); }} />
             </div>
             <SelectField label={t.serviceMer.fonction} value={formulaire.fonctionId}
+              erreur={erreursChamps.fonctionId}
               onChange={function (e) { setFormulaire({ ...formulaire, fonctionId: e.target.value }); }}>
               <option value="">—</option>
               {fonctions?.map(function (f) { return <option key={f.id} value={f.id}>{f.label}</option>; })}
             </SelectField>
             <div className="grid grid-cols-2 gap-3">
               <InputField label={t.serviceMer.debut} type="date" value={formulaire.startDate}
+                erreur={erreursChamps.startDate}
                 onChange={function (e) { setFormulaire({ ...formulaire, startDate: e.target.value }); }} obligatoire />
               <InputField label={t.serviceMer.fin} type="date" value={formulaire.endDate}
+                erreur={erreursChamps.endDate}
                 onChange={function (e) { setFormulaire({ ...formulaire, endDate: e.target.value }); }} obligatoire />
             </div>
             {dureeApercu !== null && (
