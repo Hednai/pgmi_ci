@@ -15,6 +15,7 @@ import { Button } from "../../components/atoms/Button.js";
 import { Icone } from "../../components/atoms/Icone.js";
 import { InputField, SelectField } from "../../components/atoms/Field.js";
 import { Alerte, Spinner } from "../../components/atoms/Feedback.js";
+import { PhotoProfil } from "../../components/molecules/PhotoProfil.js";
 import { dateCourte, initiales, telephone } from "../../lib/format.js";
 import { useQrCode } from "../../hooks/useQrCode.js";
 import type { CarteVerifiable, Marin } from "../../types/api.js";
@@ -151,9 +152,19 @@ export function ProfilPage() {
     <div>
       {/* Carte d'identité professionnelle */}
       <header className="-mx-4 -mt-4 mb-4 bg-gradient-to-br from-navy to-navy-light px-5 pb-6 pt-6 text-center text-white">
-        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/15 font-titre text-2xl font-bold">
-          {initiales(marin.fullName)}
-        </div>
+        {/* La photo prime sur les initiales : c'est elle que l'inspecteur
+            compare au porteur lors d'un contrôle. */}
+        {marin.photoUrl ? (
+          <img
+            src={marin.photoUrl}
+            alt={t.profil.photoAlternative}
+            className="mx-auto h-20 w-20 rounded-full border-2 border-white/30 object-cover"
+          />
+        ) : (
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/15 font-titre text-2xl font-bold">
+            {initiales(marin.fullName)}
+          </div>
+        )}
 
         <p className="mt-3 font-titre text-lg font-bold">{marin.fullName}</p>
         <p className="mt-0.5 text-xs text-white/70">
@@ -173,6 +184,13 @@ export function ProfilPage() {
       <div className="space-y-4">
         {erreur && <Alerte ton="erreur">{erreur}</Alerte>}
         {message && <Alerte ton="succes">{message}</Alerte>}
+
+        {/* Dépôt, remplacement et suppression de la photo d'identité
+            (remarque PGMI-02). Le composant remonte le dossier à jour, le
+            store le rediffuse à tout l'écran. */}
+        <Card>
+          <PhotoProfil marin={marin} surChangement={majMarin} />
+        </Card>
 
         <Card>
           <div className="mb-1 flex items-center justify-between">
