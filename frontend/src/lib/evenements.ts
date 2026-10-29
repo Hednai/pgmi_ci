@@ -42,7 +42,15 @@ export const EVENEMENTS_ECRAN = {
     EVENEMENT.DEMANDE_STATUT,
     EVENEMENT.PAIEMENT_CONFIRME,
   ],
-  VERIFICATIONS_AGENT: [EVENEMENT.DOCUMENT_DEPOSE, EVENEMENT.EMBARQUEMENT_SOUMIS],
+  // La file se remplit sur un dépôt ou une soumission, et se vide sur une
+  // décision. Sans les deux événements de statut, la décision d'un agent
+  // laissait la ligne affichée chez ses collègues jusqu'au rechargement.
+  VERIFICATIONS_AGENT: [
+    EVENEMENT.DOCUMENT_DEPOSE,
+    EVENEMENT.DOCUMENT_STATUT,
+    EVENEMENT.EMBARQUEMENT_SOUMIS,
+    EVENEMENT.EMBARQUEMENT_STATUT,
+  ],
   ARSTM: [EVENEMENT.FORMATION_SESSION_OUVERTE, EVENEMENT.FORMATION_SESSION_STATUT],
   TABLEAU_BORD_AGENT: [
     EVENEMENT.DEMANDE_CREEE,
