@@ -13,7 +13,7 @@
 //   - normalisation des erreurs en une exception unique et lisible.
 // ============================================
 import { t } from "../i18n/index.js";
-import type { ReponseApi } from "../types/api.js";
+import type { DetailValidation, ReponseApi } from "../types/api.js";
 
 const BASE = import.meta.env.VITE_API_URL ?? "";
 
@@ -36,16 +36,37 @@ export const jetons = {
   },
 };
 
-// Erreur applicative : porte le code HTTP et l'identifiant de règle métier
-// renvoyé par le serveur, ce qui permet aux écrans d'expliquer un refus.
+// Erreur applicative : porte le code HTTP, l'identifiant de règle métier
+// et les erreurs par champ renvoyées par la validation du serveur.
 export class ErreurApi extends Error {
   public statut: number;
   public regle?: string;
+  // Erreurs par champ renvoyées par la validation du serveur. Sans elles,
+  // l'écran ne peut afficher qu'un « Données invalides » qui ne dit ni quel
+  // champ est en cause ni quel format est attendu.
+  public details?: DetailValidation[];
 
-  constructor(message: string, statut: number, regle?: string) {
+  constructor(
+    message: string,
+    statut: number,
+    regle?: string,
+    details?: DetailValidation[],
+  ) {
     super(message);
     this.statut = statut;
     this.regle = regle;
+    this.details = details;
+  }
+
+  // Erreurs indexées par nom de champ, prêtes à être passées aux composants
+  // de formulaire. Le premier problème signalé sur un champ l'emporte : en
+  // afficher deux sous le même contrôle n'aide personne.
+  get parChamp(): Record<string, string> {
+    const carte: Record<string, string> = {};
+    for (const detail of this.details ?? []) {
+      if (detail.champ && !carte[detail.champ]) carte[detail.champ] = detail.message;
+    }
+    return carte;
   }
 }
 
@@ -123,6 +144,7 @@ const executer = async <T>(chemin: string, options: OptionsRequete, reessai = tr
       corps?.message ?? t.commun.erreurReseau,
       reponse.status,
       corps?.rule,
+      corps?.details,
     );
   }
 

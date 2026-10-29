@@ -7,12 +7,20 @@
 // écrans : un champ ajouté au serveur n'oblige pas à toucher au frontend.
 // ============================================
 
+// Erreur de validation rattachée à un champ précis du formulaire. Le
+// serveur en renvoie une par problème détecté, via middleware/validate.ts.
+export interface DetailValidation {
+  champ: string;   // Chemin du champ fautif (ex: imoNumber, fichier.nom)
+  message: string; // Format attendu, rédigé pour l'utilisateur
+}
+
 // Enveloppe standard de toute réponse API
 export interface ReponseApi<T> {
   success: boolean;
   message?: string;
   data: T;
   rule?: string; // Code de règle métier en cas d'erreur (ex: R9)
+  details?: DetailValidation[]; // Erreurs par champ, en cas de refus 400
 }
 
 // Réponse paginée pour les listes (marins, demandes, etc.)
