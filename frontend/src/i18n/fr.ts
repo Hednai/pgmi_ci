@@ -206,6 +206,7 @@ export const fr = {
     declarer: "Déclarer un embarquement",
     navire: "Nom du navire",
     imo: "Numéro IMO",
+    imoAide: "9 chiffres, ou laissez vide si vous ne l'avez pas.",
     pavillon: "Pavillon",
     typeNavire: "Type de navire",
     fonction: "Fonction à bord",

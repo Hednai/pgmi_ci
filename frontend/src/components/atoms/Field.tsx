@@ -80,7 +80,13 @@ export const SelectField = ({
       obligatoire={obligatoire}
       identifiant={identifiant}
     >
-      <select id={identifiant} className={CLASSES_CONTROLE} {...reste}>
+      {/* Bordure rouge et aria-invalid alignés sur InputField */}
+      <select
+        id={identifiant}
+        className={`${CLASSES_CONTROLE} ${erreur ? "border-erreur" : ""}`}
+        aria-invalid={Boolean(erreur)}
+        {...reste}
+      >
         {children}
       </select>
     </Enveloppe>
@@ -103,7 +109,14 @@ export const TextAreaField = ({
       obligatoire={obligatoire}
       identifiant={identifiant}
     >
-      <textarea id={identifiant} rows={3} className={CLASSES_CONTROLE} {...reste} />
+      {/* Bordure rouge et aria-invalid alignés sur InputField */}
+      <textarea
+        id={identifiant}
+        rows={3}
+        className={`${CLASSES_CONTROLE} ${erreur ? "border-erreur" : ""}`}
+        aria-invalid={Boolean(erreur)}
+        {...reste}
+      />
     </Enveloppe>
   );
 };
