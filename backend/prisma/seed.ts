@@ -32,6 +32,44 @@ const prisma = new PrismaClient();
 const jours = (nombre: number) => new Date(Date.now() + nombre * 24 * 60 * 60 * 1000);
 const date = (texte: string) => new Date(texte);
 
+// Numéros des marins du jeu de données. Un dossier portant un autre numéro
+// n'a pas été créé par ce script : la base porte alors des dossiers réels.
+const TELEPHONES_JEU_DE_DONNEES = [
+  "+2250701020304",
+  "+2250506070809",
+  "+2250102030405",
+  "+2250708091011",
+];
+
+// Jeton à écrire à la main pour accepter la suppression des tables métier.
+const JETON_ATTENDU = "vider-et-reinserer";
+
+// Trois refus successifs avant toute suppression : l'environnement, le jeton
+// explicite, puis la présence de dossiers que ce script n'a pas créés.
+const verifierAutorisation = async () => {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Jeu de données refusé : NODE_ENV vaut production. Ce script vide les tables métier.",
+    );
+  }
+
+  if (process.env.SEED_CONFIRME !== JETON_ATTENDU) {
+    throw new Error(
+      `Jeu de données refusé : relancer avec SEED_CONFIRME=${JETON_ATTENDU} pour accepter la suppression des tables métier.`,
+    );
+  }
+
+  const dossiersReels = await prisma.marin.count({
+    where: { phone: { notIn: TELEPHONES_JEU_DE_DONNEES } },
+  });
+
+  if (dossiersReels > 0) {
+    throw new Error(
+      `Jeu de données refusé : ${dossiersReels} dossier(s) marin hors du jeu de données. Cette base porte des données réelles.`,
+    );
+  }
+};
+
 const vider = async () => {
   // Ordre inverse des dépendances
   await prisma.qRVerificationLog.deleteMany();
@@ -55,6 +93,7 @@ const vider = async () => {
 };
 
 const principal = async () => {
+  await verifierAutorisation();
   await vider();
 
   // ---- Autorités ----
