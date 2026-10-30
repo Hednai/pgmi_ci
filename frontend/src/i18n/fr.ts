@@ -424,6 +424,20 @@ export const fr = {
     } as Record<string, string>,
   },
 
+  notifications: {
+    titre: "Mes notifications",
+    aucune: "Aucune notification pour l'instant.",
+    nonLus: "non lues",
+    toutLu: "Tout est lu.",
+    toutMarquerLu: "Tout marquer comme lu",
+    marquerLu: "Marquer comme lu",
+    raccourci: "Notifications",
+    raccourciDetail: "Décisions, paiements et pièces demandées",
+    canalSms: "SMS",
+    canalWhatsapp: "WhatsApp",
+    canalEmail: "Courriel",
+  },
+
   profil: {
     titre: "Mon profil",
     identite: "Identité",
