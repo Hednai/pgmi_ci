@@ -206,6 +206,22 @@ export interface DossierServiceMer {
   totaux: { joursVerifies: number; joursEnAttente: number; embarquements: number };
 }
 
+// Message du centre de notifications. Un envoi parti sur plusieurs canaux
+// est regroupé par le serveur : le marin voit un message, pas trois lignes.
+export interface MessageNotification {
+  id: string;
+  evenement: string;
+  contenu: string;
+  canaux: string[];   // SMS, WHATSAPP, EMAIL
+  lu: boolean;
+  creeLe: string;
+}
+
+// Page de notifications, avec le compteur de non-lus pour la pastille
+export interface PageNotifications extends Pagine<MessageNotification> {
+  nonLus: number;
+}
+
 // Paiement des frais de dossier (Mobile Money ou guichet)
 export interface Paiement {
   id: string;

@@ -20,6 +20,11 @@ import {
   inscrireEleveNavigant,
   listerValidationsEnAttente,
 } from "./marins.service.js";
+import {
+  listerMessagesMarin,
+  marquerMessageLu,
+  marquerToutLuMarin,
+} from "./notifications.service.js";
 
 // Identité de l'appelant, refusée si le middleware n'a rien posé
 const acteurCourant = (req: Request) => {
@@ -117,3 +122,23 @@ export const validationsEnAttente = asyncHandler(async (req: Request, res: Respo
     data: { ...resultat, items: resultat.items.map(serialiserMarinResume) },
   });
 });
+
+// GET /api/marins/me/notifications
+export const mesNotifications = asyncHandler(async (req: Request, res: Response) => {
+  const donnees = await listerMessagesMarin(acteurCourant(req).id, req.filtres ?? {});
+  res.status(200).json({ success: true, data: donnees });
+});
+
+// POST /api/marins/me/notifications/:id/lecture
+export const marquerNotificationLue = asyncHandler(async (req: Request, res: Response) => {
+  const donnees = await marquerMessageLu(acteurCourant(req).id, String(req.params.id));
+  res.status(200).json({ success: true, data: donnees });
+});
+
+// POST /api/marins/me/notifications/lecture
+export const marquerToutesNotificationsLues = asyncHandler(
+  async (req: Request, res: Response) => {
+    const donnees = await marquerToutLuMarin(acteurCourant(req).id);
+    res.status(200).json({ success: true, data: donnees });
+  },
+);
