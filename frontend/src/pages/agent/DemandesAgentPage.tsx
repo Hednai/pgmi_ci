@@ -14,6 +14,7 @@ import { EnteteAgent, BarreFiltres, PanneauTraitement } from "../../components/l
 import { PieceJointe } from "../../components/molecules/PieceJointe.js";
 import { useFluxTempsReel } from "../../hooks/useFluxTempsReel.js";
 import { EVENEMENTS_ECRAN } from "../../lib/evenements.js";
+import { actionsAgent } from "../../lib/demandes.js";
 import { dateCourte, initiales, montant } from "../../lib/format.js";
 import type { Demande, Pagine } from "../../types/api.js";
 
@@ -24,15 +25,6 @@ const FILTRES = [
   { valeur: "IN_REVIEW", libelle: t.demandes.statut.IN_REVIEW },
   { valeur: "AWAITING_PAYMENT", libelle: t.demandes.statut.AWAITING_PAYMENT },
 ];
-
-// Statuts pour lesquels le bouton « Instruire / Prendre en charge » est visible
-const STATUTS_INSTRUCTION = ["SUBMITTED", "AWAITING_PAYMENT", "ASSIGNED"];
-// Statuts pour lesquels « Demander des pièces » est visible
-const STATUTS_COMPLEMENT = ["ASSIGNED", "IN_REVIEW"];
-// Statuts pour lesquels les boutons de décision finale sont visibles
-const STATUTS_DECISION = ["IN_REVIEW", "ASSIGNED"];
-// Statuts qui ferment toute action : le dossier est définitivement traité
-const STATUTS_CLOS = ["APPROVED", "DOCUMENT_AVAILABLE", "REJECTED", "CANCELLED"];
 
 export function DemandesAgentPage() {
   const [resultat, setResultat] = useState<Pagine<Demande> | null>(null);
@@ -81,6 +73,10 @@ export function DemandesAgentPage() {
   };
 
   if (!resultat) return <ChargementPage />;
+
+  // Gestes ouverts sur le dossier sélectionné, déduits de la matrice de
+  // transitions du serveur plutôt que de listes tenues à la main ici.
+  const actions = selection ? actionsAgent(selection) : null;
 
   return (
     <div>
@@ -134,7 +130,7 @@ export function DemandesAgentPage() {
           </Card>
         )}
 
-        {selection && (
+        {selection && actions && (
           <PanneauTraitement
             titre={selection.certificateType.label}
             sousTitre={`${selection.reference}, ${selection.marin ? selection.marin.fullName : ""}`}
@@ -176,37 +172,49 @@ export function DemandesAgentPage() {
 
             {erreur && <Alerte ton="erreur">{erreur}</Alerte>}
 
-            {STATUTS_CLOS.includes(selection.status) ? (
+            {/* Ce que l'agent doit faire maintenant, avant les boutons :
+                l'enchaînement des étapes se lit, il ne se devine pas. */}
+            <Alerte ton={actions.clos ? "info" : "alerte"}>
+              {libelle(t.agent.prochaineEtapeAgent, selection.status)}
+            </Alerte>
+
+            {actions.clos ? (
               <Alerte ton="info">{t.agent.etapeBloquee}</Alerte>
             ) : (
               <div className="grid grid-cols-2 gap-2">
-                {STATUTS_INSTRUCTION.includes(selection.status) && (
+                {actions.instruire && (
                   <Button variante="discret" chargement={action} onClick={() => executer("instruction")}>
-                    {selection.status === "SUBMITTED" ? t.agent.prendreEnCharge : t.agent.instruire}
+                    {selection.status === "SUBMITTED"
+                      ? t.agent.prendreEnCharge
+                      : selection.status === "INFO_REQUESTED"
+                        ? t.agent.reprendreInstruction
+                        : t.agent.instruire}
                   </Button>
                 )}
-                {STATUTS_COMPLEMENT.includes(selection.status) && (
+                {actions.demanderComplement && (
                   <Button variante="discret" chargement={action} disabled={motif.trim().length < 5}
                     onClick={() => executer("complement", { message: motif })}>
                     {t.agent.demanderPieces}
                   </Button>
                 )}
-                {STATUTS_DECISION.includes(selection.status) && (
-                  <>
-                    <Button variante="danger" chargement={action} disabled={motif.trim().length < 5}
-                      onClick={() => executer("rejet", { reason: motif })}>
-                      {t.agent.rejeter}
-                    </Button>
-                    <Button variante="succes" chargement={action}
-                      onClick={() => executer("approbation", { reason: motif || undefined })}>
-                      {t.agent.approuver}
-                    </Button>
-                  </>
+                {actions.rejeter && (
+                  <Button variante="danger" chargement={action} disabled={motif.trim().length < 5}
+                    onClick={() => executer("rejet", { reason: motif })}>
+                    {t.agent.rejeter}
+                  </Button>
+                )}
+                {actions.approuver && (
+                  <Button variante="succes" chargement={action}
+                    onClick={() => executer("approbation", { reason: motif || undefined })}>
+                    {t.agent.approuver}
+                  </Button>
                 )}
               </div>
             )}
 
-            {selection.status === "AWAITING_PAYMENT" && (
+            {/* Encaissement au guichet : seul geste ouvert tant que les frais
+                dus ne sont pas réglés, l'instruction étant bloquée par R8. */}
+            {actions.encaisser && (
               <Button variante="secondaire" pleineLargeur chargement={action}
                 onClick={() => executer("encaissement")}>
                 {t.agent.encaisser}

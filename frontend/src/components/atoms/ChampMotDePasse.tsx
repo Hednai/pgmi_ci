@@ -5,6 +5,7 @@
 // ============================================
 import { useState } from "react";
 import { t } from "../../i18n/index.js";
+import { Icone } from "./Icone.js";
 
 interface ProprietesChampMotDePasse {
   label: string;
@@ -47,10 +48,13 @@ export function ChampMotDePasse({
           onClick={function () {
             setVisible(!visible);
           }}
-          className="shrink-0 text-xs text-ardoise hover:text-navy"
+          className="shrink-0 text-ardoise transition-colors hover:text-navy"
           aria-label={visible ? t.auth.masquerMotDePasse : t.auth.afficherMotDePasse}
         >
-          {visible ? t.auth.masquerMotDePasse : t.auth.afficherMotDePasse}
+          {/* L'icône seule : la phrase occupait la moitié du champ sur un
+              écran de téléphone et poussait la saisie hors de vue. Le
+              libellé reste porté par aria-label pour les lecteurs d'écran. */}
+          <Icone nom={visible ? "oeilFerme" : "oeilOuvert"} taille={18} />
         </button>
       </div>
 

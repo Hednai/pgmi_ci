@@ -184,6 +184,12 @@ export const fr = {
     filtreNational: "Livret",
     verifieParDgam: "Vérifié par la DGAM, QR actif",
     renouveler: "Renouveler",
+    // Un certificat renouvelé laisse son ancienne version en base, au statut
+    // Remplacé. Les deux côte à côte donnaient deux « Certificat médical
+    // d'aptitude » sans dire lequel fait foi.
+    versionsPrecedentes: "Versions précédentes",
+    masquerVersions: "Masquer les versions précédentes",
+    versionRemplacee: "Cette version a été remplacée. Elle n'est plus opposable à un contrôle.",
     statut: {
       SCANNED: "En attente de vérification",
       DIGITIZED: "Numérisé, non vérifié",
@@ -206,7 +212,7 @@ export const fr = {
     declarer: "Déclarer un embarquement",
     navire: "Nom du navire",
     imo: "Numéro IMO",
-    imoAide: "9 chiffres, ou laissez vide si vous ne l'avez pas.",
+    imoAide: "7 chiffres, ou laissez vide si vous ne l'avez pas.",
     pavillon: "Pavillon",
     typeNavire: "Type de navire",
     fonction: "Fonction à bord",
@@ -394,6 +400,13 @@ export const fr = {
     lieu: "Lieu",
     duree: "Durée",
     sInscrire: "M'inscrire",
+    dejaInscrit: "Déjà inscrit",
+    inscriptionEnregistree:
+      "Inscription enregistrée. Elle apparaît dans « Mes inscriptions » ci-dessus.",
+    // Le quorum conditionne l'ouverture de la session (R15). Sans cette
+    // phrase, « 1 inscrits, 5 requis » ne dit pas au marin ce qu'il attend.
+    quorumAide:
+      "La session démarre dès que le nombre d'inscrits atteint le seuil requis. Vous serez prévenu de la date.",
     statut: {
       PROPOSED: "Proposée",
       PENDING: "En attente de groupe",
@@ -494,6 +507,20 @@ export const fr = {
     piecesJointes: "Pièces jointes à la demande",
     aucunePieceJointe: "Aucune pièce jointe à cette demande.",
     etapeBloquee: "Cette action n'est pas disponible à ce stade du dossier.",
+    reprendreInstruction: "Reprendre l'instruction",
+    // Ce que l'agent doit faire maintenant, selon l'état du dossier. Pendant
+    // des libellés de t.demandes.prochaineEtape, qui s'adressent au marin.
+    prochaineEtapeAgent: {
+      SUBMITTED: "Dossier à prendre en charge. L'instruction démarre dès que vous l'ouvrez.",
+      AWAITING_PAYMENT: "Frais non réglés. L'instruction reste bloquée tant que le paiement n'est pas encaissé (R8).",
+      ASSIGNED: "Dossier pris en charge. Examinez les pièces, puis décidez ou demandez un complément.",
+      IN_REVIEW: "Examen en cours. Approuvez, rejetez avec motif, ou demandez des pièces complémentaires.",
+      INFO_REQUESTED: "Pièces complémentaires demandées au marin. Reprenez l'instruction dès qu'elles sont déposées.",
+      APPROVED: "Demande approuvée. Le document officiel est en cours d'édition par la plateforme.",
+      DOCUMENT_AVAILABLE: "Document délivré au marin. Dossier clos.",
+      REJECTED: "Dossier rejeté. Le motif a été notifié au marin.",
+      CANCELLED: "Demande annulée. Aucune action possible.",
+    } as Record<string, string>,
     tempsReelActif: "Mise à jour en direct",
   },
 
