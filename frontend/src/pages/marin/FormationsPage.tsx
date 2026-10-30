@@ -21,6 +21,9 @@ export function FormationsPage() {
   const [inscriptions, setInscriptions] = useState<InscriptionFormation[] | null>(null);
   const [sessions, setSessions] = useState<SessionFormation[]>([]);
   const [erreur, setErreur] = useState("");
+  // Confirmation après une inscription réussie : sans retour visible, le
+  // marin ne sait pas si son geste a été pris en compte.
+  const [message, setMessage] = useState("");
   const [action, setAction] = useState<string | null>(null);
 
   const rafraichir = async () => {
@@ -52,18 +55,28 @@ export function FormationsPage() {
   const sInscrire = async (session: SessionFormation) => {
     setAction(session.id);
     setErreur("");
+    setMessage("");
     try {
       await api.post("/api/formations/me", {
         certificateTypeId: session.certificateType.id,
         sessionId: session.id,
       });
       await rafraichir();
+      setMessage(t.formations.inscriptionEnregistree);
     } catch (err) {
       setErreur(err instanceof ErreurApi ? err.message : t.commun.erreurReseau);
     } finally {
       setAction(null);
     }
   };
+
+  // Modules sur lesquels le marin porte déjà une inscription active. Le
+  // serveur refuse le doublon en silence : l'écran doit le dire avant.
+  const modulesInscrits = new Set(
+    (inscriptions ?? [])
+      .filter((inscription) => inscription.status !== "DECLINED" && inscription.status !== "CANCELLED")
+      .map((inscription) => inscription.certificateType.id),
+  );
 
   if (!inscriptions) return <ChargementPage />;
 
@@ -78,6 +91,7 @@ export function FormationsPage() {
 
       <div className="space-y-5">
       {erreur && <Alerte ton="erreur">{erreur}</Alerte>}
+      {message && <Alerte ton="succes">{message}</Alerte>}
 
       {propositions.length > 0 && (
         <section className="space-y-2">
@@ -171,6 +185,11 @@ export function FormationsPage() {
                       {inscrits} {t.formations.inscrits}, {session.minQuorum}{" "}
                       {t.formations.requis}
                     </p>
+                    {/* Ce que le seuil implique pour le marin, et non le
+                        seul compteur, qui ne lui apprend rien. */}
+                    <p className="mt-1 text-[11px] leading-relaxed text-ardoise">
+                      {t.formations.quorumAide}
+                    </p>
                   </div>
                   <BadgeStatut
                     statut={session.status}
@@ -178,15 +197,21 @@ export function FormationsPage() {
                   />
                 </div>
 
+                {/* Une inscription active sur le même module est refusée en
+                    silence par le serveur : le bouton le dit au lieu de
+                    laisser croire à un second enregistrement. */}
                 <Button
                   taille="sm"
                   variante="discret"
                   pleineLargeur
                   className="mt-3"
                   chargement={action === session.id}
+                  disabled={modulesInscrits.has(session.certificateType.id)}
                   onClick={() => sInscrire(session)}
                 >
-                  {t.formations.sInscrire}
+                  {modulesInscrits.has(session.certificateType.id)
+                    ? t.formations.dejaInscrit
+                    : t.formations.sInscrire}
                 </Button>
               </Card>
             );

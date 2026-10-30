@@ -149,6 +149,9 @@ export interface DocumentMaritime {
   statutEffectif?: string;          // Statut calculé (peut différer du statut brut)
   joursRestants?: number | null;    // Jours avant expiration
   verificationCode: string | null;  // Code QR de vérification publique
+  // Chaînage de version : un document remplacé pointe vers son remplaçant.
+  // Renseigné par le serveur lors d'un renouvellement approuvé.
+  replacedById?: string | null;
   fileUrl: string | null;
   certificateType: TypeCertificat;
   marin?: MarinResume;
