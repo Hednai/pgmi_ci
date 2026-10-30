@@ -79,3 +79,10 @@ export const suspensionSchema = z.object({
 export type MajProfil = z.infer<typeof majProfilSchema>;
 export type Activation = z.infer<typeof activationSchema>;
 export type InscriptionEleve = z.infer<typeof inscriptionEleveSchema>;
+
+// Pagination du centre de notifications. Aucun filtre métier : le marin
+// voit tous ses messages, du plus récent au plus ancien.
+export const paginationNotificationsSchema = z.object({
+  page: z.coerce.number().int().positive().optional(),
+  taille: z.coerce.number().int().positive().optional(),
+});

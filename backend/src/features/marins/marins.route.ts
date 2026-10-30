@@ -24,6 +24,7 @@ import {
   inscriptionEleveSchema,
   suspensionSchema,
   photoProfilSchema,
+  paginationNotificationsSchema,
 } from "./marins.validation.js";
 import {
   monProfil,
@@ -39,6 +40,9 @@ import {
   suspendre,
   inscrireEleve,
   validationsEnAttente,
+  mesNotifications,
+  marquerNotificationLue,
+  marquerToutesNotificationsLues,
 } from "./marins.controller.js";
 
 const marinsRouter = Router();
@@ -65,6 +69,20 @@ marinsRouter.post(
   deposerMaPhoto,
 );
 marinsRouter.delete("/me/photo", requireMarin, supprimerMaPhoto);
+
+// Centre de notifications (remarque PGMI-07). Les messages existent en base
+// depuis la mise en service : seule leur lecture manquait. Déclarées avant
+// /:id pour ne pas être captées par la route paramétrée des agents.
+marinsRouter.get(
+  "/me/notifications",
+  requireMarin,
+  validateQuery(paginationNotificationsSchema),
+  mesNotifications,
+);
+// La route « tout marquer lu » précède la route paramétrée, sinon
+// « lecture » serait lu comme un identifiant de notification.
+marinsRouter.post("/me/notifications/lecture", requireMarin, marquerToutesNotificationsLues);
+marinsRouter.post("/me/notifications/:id/lecture", requireMarin, marquerNotificationLue);
 
 // ---- Module C : inscription d'un élève navigant par l'ARSTM ----
 // Déclaré avant /:id pour ne pas être capté par la route paramétrée.
