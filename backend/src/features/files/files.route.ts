@@ -17,6 +17,7 @@ import { ForbiddenError, NotFoundError } from "../../utils/errors.js";
 import { aPermission, PERMISSION } from "../../domain/permissions.js";
 import { logAction, AUDIT_ACTION } from "../../utils/auditLog.js";
 import { storage } from "../../services/storage/storage.service.js";
+import { mimeDepuisExtension } from "../../services/storage/signature.js";
 import { STOCKAGE } from "../../config/constants.js";
 import type { Acteur } from "../../middleware/auth.js";
 
@@ -138,6 +139,19 @@ filesRouter.get(
     } catch {
       throw new NotFoundError("Document introuvable.");
     }
+
+    // Le type réel est déduit de l'extension, elle-même posée au dépôt à
+    // partir de la signature du fichier. Servi sans en-tête de type, le
+    // document arrivait au navigateur comme un flux binaire inconnu :
+    // impossible à afficher, et enregistré sans format.
+    const typeMime = mimeDepuisExtension(absolu);
+    if (typeMime) {
+      res.setHeader("Content-Type", typeMime);
+    }
+
+    // inline : la pièce s'affiche dans l'onglet de consultation. Le
+    // téléchargement reste piloté par le client, qui impose son nom.
+    res.setHeader("Content-Disposition", "inline");
 
     createReadStream(absolu).pipe(res);
   }),
