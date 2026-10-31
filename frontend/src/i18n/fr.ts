@@ -258,10 +258,22 @@ export const fr = {
     verifiePar: "Vérifié par la DGAM",
     statut: {
       DECLARED: "Déclaré",
+      AWAITING_PAYMENT: "En attente de paiement",
       SUBMITTED: "En vérification",
+      INFO_REQUESTED: "Pièces demandées",
       VERIFIED: "Vérifié",
       REJECTED: "Rejeté",
     } as Record<string, string>,
+    complementDemande: "La DGAM attend des pièces complémentaires",
+    // Règlement des frais de validation d'un mouvement. Le montant n'est
+    // jamais ici : il vient de la grille tarifaire administrable.
+    reglement: {
+      fraisValidation: "Frais de validation de ce mouvement",
+      note: "Ces frais se règlent une seule fois. Si la DGAM vous demande des pièces complémentaires, le nouveau dépôt est gratuit.",
+      moyen: "Moyen de paiement",
+      choisirMoyen: "Choisir un moyen de paiement",
+      payerEtSoumettre: "Payer et soumettre",
+    },
   },
 
   conformite: {

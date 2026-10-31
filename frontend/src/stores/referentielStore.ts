@@ -16,6 +16,7 @@ interface EtatReferentiel extends Partial<Referentiels> {
   charger: () => Promise<void>;
   certificat: (id: string) => TypeCertificat | undefined;
   bareme: (certificateTypeId: string, requestType: string) => Bareme | undefined;
+  baremeService: (serviceCode: string) => Bareme | undefined;
   enregistrerBareme: (corps: CorpsBareme) => Promise<void>;
 }
 
@@ -40,6 +41,12 @@ export const useReferentielStore = create<EtatReferentiel>((set, get) => ({
       (bareme) =>
         bareme.certificateTypeId === certificateTypeId && bareme.requestType === requestType,
     ),
+
+  // Tarif d'une prestation de la plateforme, validation d'un mouvement ou
+  // relevé de navigation. Même règle que ci-dessus : l'absence de ligne vaut
+  // gratuité, exactement comme la lit le serveur.
+  baremeService: (serviceCode) =>
+    get().baremes?.find((bareme) => bareme.serviceCode === serviceCode),
 
   // Création ou modification d'un tarif. L'appel réseau appartient au
   // magasin : l'écran ne connaît ni la route ni la forme de la réponse.
