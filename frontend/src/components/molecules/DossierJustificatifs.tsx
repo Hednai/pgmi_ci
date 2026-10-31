@@ -167,10 +167,14 @@ export function DossierJustificatifs({ embarquement, surChangement }: Proprietes
                     );
                   })}
 
-                  <label className="mt-1.5 block">
-                    <span className="sr-only">{piece.libelle}</span>
+                  {/* Le champ n'est pas enveloppé dans un label : le label
+                      désignerait ce même champ, et le clic serait rejoué une
+                      seconde fois par son activation native. Le libellé est
+                      donc porté par aria-label. */}
+                  <div className="mt-1.5 block">
                     <input
                       type="file"
+                      aria-label={piece.libelle}
                       accept={contraintes.typesAcceptes.join(",")}
                       disabled={enCours !== null}
                       className="block w-full text-[11px] text-ardoise"
@@ -188,7 +192,7 @@ export function DossierJustificatifs({ embarquement, surChangement }: Proprietes
                         {t.serviceMer.justificatifs.remplacement}
                       </span>
                     )}
-                  </label>
+                  </div>
                 </div>
               </div>
             </li>
