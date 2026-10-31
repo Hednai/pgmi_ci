@@ -16,6 +16,7 @@ import {
   verifierDossierPayable,
   confirmerPaiementMouvement,
   demanderComplementEmbarquement,
+  obtenirQrMouvement,
   listerASoumettre,
   verifierEmbarquement,
   rejeterEmbarquement,
@@ -93,6 +94,12 @@ export const payerMouvement = asyncHandler(async (req: Request, res: Response) =
   const embarquement = await confirmerPaiementMouvement(embarquementId);
 
   res.status(200).json({ success: true, data: { paiement, embarquement } });
+});
+
+// GET /api/sea-service/me/:id/qr
+export const qrMouvement = asyncHandler(async (req: Request, res: Response) => {
+  const qr = await obtenirQrMouvement(String(req.params.id), acteurCourant(req).id);
+  res.status(200).json({ success: true, data: qr });
 });
 
 // GET /api/sea-service/pieces-attendues

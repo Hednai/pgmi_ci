@@ -22,6 +22,7 @@ import {
   retirerPiece,
   soumettrePreuve,
   payerMouvement,
+  qrMouvement,
   piecesAttendues,
   aVerifier,
   dossierDuMarin,
@@ -41,6 +42,10 @@ seaServiceRouter.post(
   validateBody(declarationEmbarquementSchema),
   declarer,
 );
+
+// QR et code court d'un mouvement vérifié (R26). Lecture seule, réservée
+// au marin propriétaire du dossier.
+seaServiceRouter.get("/me/:id/qr", requireMarin, qrMouvement);
 
 // Référentiel des pièces attendues. Lecture seule, ouverte à tout marin
 // authentifié : c'est la source unique de la note affichée avant dépôt.
