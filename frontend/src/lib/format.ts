@@ -56,6 +56,13 @@ export const telephone = (valeur: string): string => {
   return groupes ? `+225 ${groupes.join(" ")}` : valeur;
 };
 
+// Nom complet d'un marin, construit depuis les champs que le serveur envoie
+// réellement. Les listes de documents et d'embarquements ne portent que le
+// prénom et le nom.
+export const nomComplet = (
+  marin?: { firstName?: string | null; lastName?: string | null } | null,
+): string => [marin?.firstName, marin?.lastName].filter(Boolean).join(" ");
+
 // Initiales d'un nom, utilisées par la pastille d'avatar
 export const initiales = (nomComplet: string): string =>
   nomComplet

@@ -111,6 +111,16 @@ export interface CarteVerifiable {
   actif: boolean;    // Faux tant que la DGAM n'a pas activé le dossier
 }
 
+// Identité minimale d'un marin, telle que les listes de documents et
+// d'embarquements la renvoient. Ces deux services ne calculent pas de nom
+// complet : l'écran l'assemble avec nomComplet().
+export interface MarinIdentite {
+  id: string;
+  firstName: string;
+  lastName: string;
+  matricule: string | null;
+}
+
 // Résumé d'un marin pour les listes agent (sans données sensibles complètes)
 export interface MarinResume {
   id: string;
@@ -154,7 +164,7 @@ export interface DocumentMaritime {
   replacedById?: string | null;
   fileUrl: string | null;
   certificateType: TypeCertificat;
-  marin?: MarinResume;
+  marin?: MarinIdentite;
 }
 
 // Pièce justificative attendue pour un embarquement. Le référentiel vient
@@ -197,7 +207,7 @@ export interface Embarquement {
   proofs?: PieceDeposee[];
   rejectReason: string | null;
   fonction: Fonction | null;
-  marin?: MarinResume;
+  marin?: MarinIdentite;
 }
 
 // Dossier service en mer : liste des embarquements + totaux

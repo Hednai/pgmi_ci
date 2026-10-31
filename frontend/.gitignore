@@ -4,3 +4,6 @@ dist-ssr/
 .env
 *.local
 dev-dist/
+
+# Cache incrémental de TypeScript : régénéré à chaque build, jamais partagé
+*.tsbuildinfo
