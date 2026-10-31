@@ -6,21 +6,34 @@
 // formations requises, barèmes. Un administrateur métier doit pouvoir les
 // vérifier sans ouvrir la base.
 // ============================================
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { t } from "../../i18n/index.js";
 import { useReferentielStore } from "../../stores/referentielStore.js";
-import { Card } from "../../components/atoms/Card.js";
+import { Card, EtatVide } from "../../components/atoms/Card.js";
 import { Badge } from "../../components/atoms/Badge.js";
+import { Button } from "../../components/atoms/Button.js";
 import { ChargementPage } from "../../components/atoms/Feedback.js";
 import { EnteteAgent } from "../../components/layouts/EnteteAgent.js";
+import { FormulaireBareme } from "../../components/molecules/FormulaireBareme.js";
+import { libelleBareme, natureBareme } from "../../lib/baremes.js";
 import { montant } from "../../lib/format.js";
+import type { Bareme } from "../../types/api.js";
 
 export function ReferentielsPage() {
-  const { fonctions, certificats, baremes, charge, charger } = useReferentielStore();
+  const { fonctions, certificats, baremes, charge, charger, enregistrerBareme } =
+    useReferentielStore();
+
+  // Formulaire de tarif ouvert. Null signifie fermé, un objet sans barème
+  // signifie création, un objet avec barème signifie modification.
+  const [formulaire, setFormulaire] = useState<{ bareme?: Bareme } | null>(null);
 
   useEffect(() => {
     void charger();
   }, [charger]);
+
+  function fermerFormulaire() {
+    setFormulaire(null);
+  }
 
   if (!charge) return <ChargementPage />;
 
@@ -74,31 +87,67 @@ export function ReferentielsPage() {
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold text-navy">{t.referentiels.baremes}</h2>
-        <Card className="divide-y divide-bordure p-0">
-          {baremes?.map((bareme) => {
-            const certificat = certificats?.find(
-              (valeur) => valeur.id === bareme.certificateTypeId,
-            );
-            // Une ligne tarife un certificat ou une prestation de la
-            // plateforme. Le libellé vient de la source correspondante.
-            const libelle = bareme.serviceCode
-              ? (t.referentiels.services[bareme.serviceCode] ??
-                 t.referentiels.prestationInconnue)
-              : (certificat?.label ?? t.referentiels.prestationInconnue);
-            return (
-              <div key={bareme.id} className="flex items-center justify-between px-4 py-2.5">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-navy">{t.referentiels.baremes}</h2>
+          {/* Le bouton disparaît pendant la saisie : un seul formulaire à
+              la fois évite deux tarifs édités en parallèle. */}
+          {!formulaire && (
+            <Button
+              taille="sm"
+              variante="discret"
+              onClick={function () {
+                setFormulaire({});
+              }}
+            >
+              {t.referentiels.ajouterTarif}
+            </Button>
+          )}
+        </div>
+
+        {formulaire && (
+          <div className="mb-3">
+            <FormulaireBareme
+              certificats={certificats ?? []}
+              bareme={formulaire.bareme}
+              onEnregistrer={enregistrerBareme}
+              onFermer={fermerFormulaire}
+            />
+          </div>
+        )}
+
+        {baremes && baremes.length > 0 ? (
+          <Card className="divide-y divide-bordure p-0">
+            {baremes.map((bareme) => (
+              <div
+                key={bareme.id}
+                className="flex items-center justify-between gap-3 px-4 py-2.5"
+              >
                 <div className="min-w-0">
-                  <p className="truncate text-sm text-navy">{libelle}</p>
-                  <p className="text-xs text-ardoise">{bareme.requestType}</p>
+                  <p className="truncate text-sm text-navy">
+                    {libelleBareme(bareme, certificats ?? [])}
+                  </p>
+                  <p className="text-xs text-ardoise">{natureBareme(bareme)}</p>
                 </div>
-                <span className="shrink-0 text-sm font-semibold text-orange-ci">
-                  {montant(bareme.amount, bareme.currency)}
-                </span>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-sm font-semibold text-orange-ci">
+                    {montant(bareme.amount, bareme.currency)}
+                  </span>
+                  <Button
+                    taille="sm"
+                    variante="discret"
+                    onClick={function () {
+                      setFormulaire({ bareme });
+                    }}
+                  >
+                    {t.referentiels.modifier}
+                  </Button>
+                </div>
               </div>
-            );
-          })}
-        </Card>
+            ))}
+          </Card>
+        ) : (
+          <EtatVide message={t.referentiels.aucunBareme} />
+        )}
       </section>
 
       <section>
