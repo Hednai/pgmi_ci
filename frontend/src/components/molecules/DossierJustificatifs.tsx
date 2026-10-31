@@ -132,6 +132,9 @@ export function DossierJustificatifs({ embarquement, surChangement }: Proprietes
           const fournies = piecesDe(piece.code);
           const fournie = fournies.length > 0;
           const remplacable = fournie && !piece.multiple;
+          // Identifiant unique du champ, dérivé des données : plusieurs
+          // embarquements coexistent sur l'écran, chacun avec ses pièces.
+          const identifiantChamp = `depot-${embarquement.id}-${piece.code}`;
 
           return (
             <li key={piece.code}>
@@ -167,17 +170,18 @@ export function DossierJustificatifs({ embarquement, surChangement }: Proprietes
                     );
                   })}
 
-                  {/* Le champ n'est pas enveloppé dans un label : le label
-                      désignerait ce même champ, et le clic serait rejoué une
-                      seconde fois par son activation native. Le libellé est
-                      donc porté par aria-label. */}
-                  <div className="mt-1.5 block">
+                  {/* Le champ natif est masqué et piloté par un libellé placé
+                      à côté de lui, jamais autour : un champ enveloppé dans
+                      son propre label reçoit le clic deux fois. L'identifiant
+                      est dérivé de l'embarquement et du code de la pièce, il
+                      reste donc unique sur un écran qui en affiche plusieurs. */}
+                  <div className="mt-1.5">
                     <input
+                      id={identifiantChamp}
                       type="file"
-                      aria-label={piece.libelle}
                       accept={contraintes.typesAcceptes.join(",")}
                       disabled={enCours !== null}
-                      className="block w-full text-[11px] text-ardoise"
+                      className="hidden"
                       onChange={function (evenement) {
                         const fichier = evenement.target.files?.[0];
                         // Le champ est remis à zéro : sans cela, redéposer
@@ -187,8 +191,16 @@ export function DossierJustificatifs({ embarquement, surChangement }: Proprietes
                         if (fichier) { void deposer(piece.code, fichier); }
                       }}
                     />
+                    <label
+                      htmlFor={identifiantChamp}
+                      className="inline-block cursor-pointer rounded-lg border border-navy px-3 py-1.5 text-[11px] font-semibold text-navy transition-colors hover:bg-navy-soft"
+                    >
+                      {fournie
+                        ? t.serviceMer.justificatifs.choisirAutreFichier
+                        : t.serviceMer.justificatifs.choisirFichier}
+                    </label>
                     {remplacable && (
-                      <span className="text-[10px] text-ardoise">
+                      <span className="ml-2 text-[10px] text-ardoise">
                         {t.serviceMer.justificatifs.remplacement}
                       </span>
                     )}
