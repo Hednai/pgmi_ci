@@ -4,6 +4,7 @@
 // ============================================
 import { z } from "zod";
 import { CERTIFICATE_CATEGORY, REQUEST_TYPE } from "../../domain/status.js";
+import { SERVICE_TARIFE, TYPE_PRESTATION_SERVICE } from "../../domain/prestations.js";
 
 export const fonctionSchema = z.object({
   code: z.string().trim().min(2).max(20).toUpperCase(),
@@ -30,7 +31,15 @@ export const certificateTypeSchema = z.object({
   isActive: z.boolean().default(true),
 });
 
-export const feeScheduleSchema = z.object({
+// Partie commune aux deux formes de barème.
+const montantSchema = {
+  amount: z.coerce.number().int().min(0).max(10_000_000),
+  currency: z.string().trim().length(3).default("XOF"),
+  isActive: z.boolean().default(true),
+};
+
+// Barème d'un type de certificat, tarifé par type de demande.
+const baremeCertificatSchema = z.object({
   certificateTypeId: z.string().trim().min(1),
   requestType: z.enum([
     REQUEST_TYPE.FIRST_ISSUANCE,
@@ -38,7 +47,22 @@ export const feeScheduleSchema = z.object({
     REQUEST_TYPE.DUPLICATE,
     REQUEST_TYPE.UPGRADE,
   ]),
-  amount: z.coerce.number().int().min(0).max(10_000_000),
-  currency: z.string().trim().length(3).default("XOF"),
-  isActive: z.boolean().default(true),
+  ...montantSchema,
 });
+
+// Barème d'une prestation de la plateforme, tarifée par code de service.
+const baremeServiceSchema = z.object({
+  serviceCode: z.enum([
+    SERVICE_TARIFE.EMBARKATION_VALIDATION,
+    SERVICE_TARIFE.NAVIGATION_RECORD,
+  ]),
+  requestType: z.literal(TYPE_PRESTATION_SERVICE).default(TYPE_PRESTATION_SERVICE),
+  ...montantSchema,
+});
+
+// Une ligne de barème tarife soit un certificat, soit un service, jamais
+// les deux : l'union discriminée interdit la ligne ambiguë dès la validation.
+export const feeScheduleSchema = z.union([
+  baremeCertificatSchema,
+  baremeServiceSchema,
+]);

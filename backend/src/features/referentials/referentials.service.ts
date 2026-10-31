@@ -10,6 +10,7 @@
 import { prisma } from "../../lib/prisma.js";
 import { logAction, AUDIT_ACTION } from "../../utils/auditLog.js";
 import { NotFoundError } from "../../utils/errors.js";
+import { TYPE_PRESTATION_SERVICE, type ServiceTarife } from "../../domain/prestations.js";
 import type { Acteur } from "../../middleware/auth.js";
 import { z } from "zod";
 import type {
@@ -45,6 +46,16 @@ export const chargerReferentiels = async () => {
   ]);
 
   return { fonctions, certificats, baremes };
+};
+
+// Montant d'une prestation de la plateforme, lu dans le barème administrable.
+// Absence de barème signifie gratuité, pas erreur : la DGAM peut exonérer une
+// prestation en désactivant simplement sa ligne.
+export const lireMontantPrestation = async (serviceCode: ServiceTarife) => {
+  const bareme = await prisma.feeSchedule.findFirst({
+    where: { serviceCode, requestType: TYPE_PRESTATION_SERVICE, isActive: true },
+  });
+  return { montant: bareme?.amount ?? 0, devise: bareme?.currency ?? "XOF" };
 };
 
 // Trace commune à toute modification de référentiel
@@ -99,26 +110,60 @@ export const majCertificat = async (
 // Un barème est unique par couple certificat et type de demande : la mise à
 // jour se fait par upsert pour éviter les doublons contradictoires.
 export const definirBareme = async (donnees: DonneesBareme, acteur: Acteur) => {
-  const type = await prisma.certificateType.findUnique({
-    where: { id: donnees.certificateTypeId },
-    select: { id: true },
-  });
-  if (!type) throw new NotFoundError("Type de certificat inconnu.");
+  const valeurs = {
+    amount: donnees.amount,
+    currency: donnees.currency,
+    isActive: donnees.isActive,
+  };
 
-  const bareme = await prisma.feeSchedule.upsert({
-    where: {
-      certificateTypeId_requestType: {
-        certificateTypeId: donnees.certificateTypeId,
-        requestType: donnees.requestType,
-      },
-    },
-    create: donnees,
-    update: {
-      amount: donnees.amount,
-      currency: donnees.currency,
-      isActive: donnees.isActive,
-    },
-  });
+  // Deux formes de barème, deux clés d'unicité distinctes. La forme est
+  // déterminée par le champ présent, jamais par un indicateur séparé.
+  const bareme =
+    "serviceCode" in donnees
+      ? await (async () => {
+          // Une contrainte composée qui porte une colonne nullable n'est pas
+          // exposée comme clé unique par le client Prisma. La ligne est donc
+          // recherchée, puis mise à jour ou créée explicitement. La contrainte
+          // reste en base et continue d'interdire le doublon.
+          const existant = await prisma.feeSchedule.findFirst({
+            where: {
+              serviceCode: donnees.serviceCode,
+              requestType: donnees.requestType,
+            },
+            select: { id: true },
+          });
+
+          const creation = {
+            serviceCode: donnees.serviceCode,
+            requestType: donnees.requestType,
+            ...valeurs,
+          };
+
+          return existant
+            ? prisma.feeSchedule.update({
+                where: { id: existant.id },
+                data: valeurs,
+              })
+            : prisma.feeSchedule.create({ data: creation });
+        })()
+      : await (async () => {
+          const type = await prisma.certificateType.findUnique({
+            where: { id: donnees.certificateTypeId },
+            select: { id: true },
+          });
+          if (!type) throw new NotFoundError("Type de certificat inconnu.");
+
+          return prisma.feeSchedule.upsert({
+            where: {
+              certificateTypeId_requestType: {
+                certificateTypeId: donnees.certificateTypeId,
+                requestType: donnees.requestType,
+              },
+            },
+            create: donnees,
+            update: valeurs,
+          });
+        })();
 
   await tracer(acteur, "FeeSchedule", bareme.id, {
     operation: "bareme",
