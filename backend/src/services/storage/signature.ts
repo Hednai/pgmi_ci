@@ -38,6 +38,21 @@ export const EXTENSIONS_PAR_MIME: Record<string, string> = {
 // inaperçu jusqu'au premier dépôt.
 export const MIME_AUTORISES = Object.keys(SIGNATURES);
 
+// Type MIME retrouvé depuis l'extension du fichier stocké. La route des
+// pièces jointes ne connaît qu'un chemin sur le disque : sans ce rappel,
+// elle servait les octets sans en-tête de type, et le navigateur ne pouvait
+// ni afficher le document ni l'enregistrer sous son vrai format.
+const MIME_PAR_EXTENSION: Record<string, string> = Object.fromEntries(
+  Object.entries(EXTENSIONS_PAR_MIME).map(function (paire) {
+    return [paire[1], paire[0]];
+  }),
+);
+
+export const mimeDepuisExtension = (chemin: string): string | null => {
+  const point = chemin.lastIndexOf(".");
+  if (point < 0) return null;
+  return MIME_PAR_EXTENSION[chemin.slice(point).toLowerCase()] ?? null;
+};
 // Libellé des formats acceptés, dérivé des extensions déclarées.
 // Les messages d'erreur annonçaient « JPG, PNG, PDF » alors que le WebP
 // était accepté : un marin voyait son dépôt réussir après un message qui le

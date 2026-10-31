@@ -8,7 +8,7 @@
 // ============================================
 import { prisma } from "../../lib/prisma.js";
 import { EMBARKATION_STATUS } from "../../domain/status.js";
-import { calculerJoursEmbarquement } from "../../utils/dates.js";
+import { calculerJoursEmbarquement, formaterDate } from "../../utils/dates.js";
 import { logAction, AUDIT_ACTION } from "../../utils/auditLog.js";
 import { storage } from "../../services/storage/storage.service.js";
 import {
@@ -103,7 +103,10 @@ export const listerEmbarquements = async (marinId: string, filtres: Record<strin
       ...(filtres.status ? { status: String(filtres.status) } : {}),
     },
     include: INCLUDE_EMBARQUEMENT,
-    orderBy: { startDate: "desc" },
+    // Trois critères : à dates d'embarquement égales, le débarquement le plus
+    // récent passe devant, puis la déclaration la plus récente. Sans eux, deux
+    // embarquements commençant le même jour sortaient dans un ordre arbitraire.
+    orderBy: [{ startDate: "desc" }, { endDate: "desc" }, { createdAt: "desc" }],
   });
 
   return { embarquements, totaux: await calculerTotaux(marinId) };
@@ -123,6 +126,35 @@ export const declarerEmbarquement = async (
     endDate: Date;
   },
 ) => {
+  // R22 : un marin ne sert que sur un navire à la fois. Le chevauchement est
+  // strict : débarquer le 12 et embarquer le 13 reste accepté, c'est le cas
+  // courant d'une promotion ou d'une relève. Sans ce contrôle, les mêmes
+  // journées étaient comptées deux fois dans le service en mer.
+  //
+  // Un dossier rejeté ne bloque rien : ses jours ne sont comptés dans aucun
+  // total, la période reste donc libre. La ligne demeure visible au marin
+  // avec son motif de refus.
+  const chevauchement = await prisma.embarkation.findFirst({
+    where: {
+      marinId,
+      status: { not: EMBARKATION_STATUS.REJECTED },
+      startDate: { lte: donnees.endDate },
+      endDate: { gte: donnees.startDate },
+    },
+    select: { vesselName: true, startDate: true, endDate: true },
+  });
+
+  if (chevauchement) {
+    throw new BusinessRuleError(
+      `Vous avez déjà un embarquement sur ${chevauchement.vesselName}, du ` +
+        `${formaterDate(chevauchement.startDate)} au ${formaterDate(chevauchement.endDate)}. ` +
+        "Un marin ne peut pas servir sur deux navires en même temps. " +
+        "Le jour de débarquement compte : un nouvel embarquement commence " +
+        "le lendemain au plus tôt.",
+      "R22",
+    );
+  }
+
   const embarquement = await prisma.embarkation.create({
     data: {
       marinId,
