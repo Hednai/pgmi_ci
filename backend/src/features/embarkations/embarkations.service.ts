@@ -183,6 +183,15 @@ const embarquementModifiable = async (embarquementId: string, marinId: string) =
     throw new ForbiddenError("Cet embarquement ne figure pas dans votre dossier.");
   }
 
+  // Un dossier transmis à la DGAM n'est plus modifiable : ni dépôt, ni
+  // retrait, ni nouvelle soumission tant que l'instruction n'est pas close.
+  if (embarquement.status === EMBARKATION_STATUS.SUBMITTED) {
+    throw new BusinessRuleError(
+      "Ce dossier est en cours de vérification à la DGAM et ne peut plus être modifié.",
+      "R4",
+    );
+  }
+
   if (embarquement.status === EMBARKATION_STATUS.VERIFIED) {
     throw new BusinessRuleError("Cet embarquement est déjà vérifié.");
   }
@@ -340,6 +349,15 @@ export const soumettreEmbarquement = async (embarquementId: string, marinId: str
       jours: embarquement.days,
       pieces: embarquement.proofs.length,
     },
+  });
+
+  // Le marin est averti que son dossier est parti et qu'il est désormais
+  // verrouillé : sans cette trace, il découvre le blocage en tentant de
+  // déposer une pièce de plus.
+  await notifierMarin({
+    marinId,
+    evenement: NOTIFICATION_EVENT.REQUEST_STATUS_CHANGED,
+    contenu: `PGMI : votre dossier d'embarquement sur ${embarquement.vesselName} est transmis à la DGAM. Il ne peut plus être modifié pendant la vérification.`,
   });
 
   // La file de vérification des agents se remplit en direct.

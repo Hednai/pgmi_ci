@@ -21,6 +21,7 @@ import {
   obtenirContraintesDepot,
   tailleLisible,
 } from "../../lib/contraintesDepot.js";
+import { dossierModifiable } from "../../lib/embarquements.js";
 import type { ContraintesDepot } from "../../lib/contraintesDepot.js";
 import type { Embarquement, PieceAttendue, PieceDeposee } from "../../types/api.js";
 
@@ -52,6 +53,10 @@ export function DossierJustificatifs({ embarquement, surChangement }: Proprietes
   }, []);
 
   const deposees: PieceDeposee[] = embarquement.proofs ?? [];
+
+  // Un dossier transmis à la DGAM ne se modifie plus : les gestes de dépôt,
+  // de retrait et de soumission disparaissent au lieu d'échouer au serveur.
+  const modifiable = dossierModifiable(embarquement.status);
 
   const piecesDe = (code: string): PieceDeposee[] =>
     deposees.filter(function (piece) { return piece.kind === code; });
@@ -131,7 +136,7 @@ export function DossierJustificatifs({ embarquement, surChangement }: Proprietes
         {attendues.map(function (piece) {
           const fournies = piecesDe(piece.code);
           const fournie = fournies.length > 0;
-          const remplacable = fournie && !piece.multiple;
+          const remplacable = modifiable && fournie && !piece.multiple;
           // Identifiant unique du champ, dérivé des données : plusieurs
           // embarquements coexistent sur l'écran, chacun avec ses pièces.
           const identifiantChamp = `depot-${embarquement.id}-${piece.code}`;
@@ -159,13 +164,15 @@ export function DossierJustificatifs({ embarquement, surChangement }: Proprietes
                     return (
                       <div key={fichier.id} className="mt-1.5 flex items-center gap-2">
                         <span className="truncate text-[11px] text-navy-light">{fichier.fileName}</span>
-                        <button
-                          type="button"
-                          className="shrink-0 text-[11px] font-medium text-erreur underline"
-                          onClick={function () { void retirer(fichier.id); }}
-                        >
-                          {t.commun.retirer}
-                        </button>
+                        {modifiable && (
+                          <button
+                            type="button"
+                            className="shrink-0 text-[11px] font-medium text-erreur underline"
+                            onClick={function () { void retirer(fichier.id); }}
+                          >
+                            {t.commun.retirer}
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -175,36 +182,38 @@ export function DossierJustificatifs({ embarquement, surChangement }: Proprietes
                       son propre label reçoit le clic deux fois. L'identifiant
                       est dérivé de l'embarquement et du code de la pièce, il
                       reste donc unique sur un écran qui en affiche plusieurs. */}
-                  <div className="mt-1.5">
-                    <input
-                      id={identifiantChamp}
-                      type="file"
-                      accept={contraintes.typesAcceptes.join(",")}
-                      disabled={enCours !== null}
-                      className="hidden"
-                      onChange={function (evenement) {
-                        const fichier = evenement.target.files?.[0];
-                        // Le champ est remis à zéro : sans cela, redéposer
-                        // le même fichier après un retrait ne déclenche
-                        // aucun événement de changement.
-                        evenement.target.value = "";
-                        if (fichier) { void deposer(piece.code, fichier); }
-                      }}
-                    />
-                    <label
-                      htmlFor={identifiantChamp}
-                      className="inline-block cursor-pointer rounded-lg border border-navy px-3 py-1.5 text-[11px] font-semibold text-navy transition-colors hover:bg-navy-soft"
-                    >
-                      {fournie
-                        ? t.serviceMer.justificatifs.choisirAutreFichier
-                        : t.serviceMer.justificatifs.choisirFichier}
-                    </label>
-                    {remplacable && (
-                      <span className="ml-2 text-[10px] text-ardoise">
-                        {t.serviceMer.justificatifs.remplacement}
-                      </span>
-                    )}
-                  </div>
+                  {modifiable && (
+                    <div className="mt-1.5">
+                      <input
+                        id={identifiantChamp}
+                        type="file"
+                        accept={contraintes.typesAcceptes.join(",")}
+                        disabled={enCours !== null}
+                        className="hidden"
+                        onChange={function (evenement) {
+                          const fichier = evenement.target.files?.[0];
+                          // Le champ est remis à zéro : sans cela, redéposer
+                          // le même fichier après un retrait ne déclenche
+                          // aucun événement de changement.
+                          evenement.target.value = "";
+                          if (fichier) { void deposer(piece.code, fichier); }
+                        }}
+                      />
+                      <label
+                        htmlFor={identifiantChamp}
+                        className="inline-block cursor-pointer rounded-lg border border-navy px-3 py-1.5 text-[11px] font-semibold text-navy transition-colors hover:bg-navy-soft"
+                      >
+                        {fournie
+                          ? t.serviceMer.justificatifs.choisirAutreFichier
+                          : t.serviceMer.justificatifs.choisirFichier}
+                      </label>
+                      {remplacable && (
+                        <span className="ml-2 text-[10px] text-ardoise">
+                          {t.serviceMer.justificatifs.remplacement}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </li>
@@ -214,16 +223,26 @@ export function DossierJustificatifs({ embarquement, surChangement }: Proprietes
 
       {erreur && <div className="mt-3"><Alerte ton="erreur">{erreur}</Alerte></div>}
 
-      {!complet && (
-        <p className="mt-3 text-[11px] font-medium text-orange-ci">
-          {t.serviceMer.justificatifs.incomplet}{" "}
-          {manquantes.map(function (piece) { return piece.libelle; }).join(" ; ")}
-        </p>
-      )}
+      {/* Le dossier verrouillé n'affiche ni ce qui manque ni le bouton
+          d'envoi : il n'y a plus rien à compléter ni à transmettre. */}
+      {modifiable ? (
+        <>
+          {!complet && (
+            <p className="mt-3 text-[11px] font-medium text-orange-ci">
+              {t.serviceMer.justificatifs.incomplet}{" "}
+              {manquantes.map(function (piece) { return piece.libelle; }).join(" ; ")}
+            </p>
+          )}
 
-      <Button pleineLargeur chargement={soumission} disabled={!complet} onClick={soumettre} className="mt-3">
-        {t.serviceMer.justificatifs.soumettre}
-      </Button>
+          <Button pleineLargeur chargement={soumission} disabled={!complet} onClick={soumettre} className="mt-3">
+            {t.serviceMer.justificatifs.soumettre}
+          </Button>
+        </>
+      ) : (
+        <div className="mt-3">
+          <Alerte ton="info">{t.serviceMer.justificatifs.dossierVerrouille}</Alerte>
+        </div>
+      )}
     </div>
   );
 }

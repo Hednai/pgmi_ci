@@ -223,10 +223,6 @@ export function ServiceMerPage() {
                           </div>
                         )}
 
-                        {embarquement.status === "SUBMITTED" && (
-                          <p className="mt-2 text-[11px] text-ardoise">{t.serviceMer.dossierEnAttente}</p>
-                        )}
-
                         {embarquement.rejectReason && (
                           <p className="mt-2 text-xs font-medium text-erreur">
                             {t.serviceMer.dossierRejete} {embarquement.rejectReason}
