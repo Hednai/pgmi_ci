@@ -141,7 +141,9 @@ export function VerificationsAgentPage() {
         {onglet === "embarquements" && (
           embarquements.items.length === 0 ? <EtatVide message={t.commun.aucunResultat} /> : (
             <div className="space-y-2">
-              <InputField label={t.agent.motifRejet} aide={t.agent.motifObligatoire}
+              {/* Un seul champ pour les deux gestes écrits : le motif de
+                  rejet et le message de pièces complémentaires. */}
+              <InputField label={t.agent.messageComplement} aide={t.agent.messageComplementAide}
                 value={methode} onChange={(e) => setMethode(e.target.value)} />
 
               {embarquements.items.map((embarquement) => (
@@ -194,6 +196,21 @@ export function VerificationsAgentPage() {
                       {t.agent.rejeter}
                     </Button>
                   </div>
+
+                  {/* Troisième issue : le dossier revient au marin sans être
+                      refusé. Un justificatif illisible ne mérite pas un rejet,
+                      qui oblige le marin à tout reprendre. Le message exige
+                      dix caractères, il est envoyé tel quel. */}
+                  <Button variante="discret" taille="sm" pleineLargeur
+                    chargement={action === embarquement.id}
+                    disabled={methode.trim().length < 10}
+                    onClick={() => agir(`/api/sea-service/${embarquement.id}/complement`, embarquement.id, { reason: methode })}>
+                    {t.agent.demanderComplement}
+                  </Button>
+
+                  <p className="text-[11px] leading-relaxed text-ardoise">
+                    {t.agent.rejetRecours}
+                  </p>
                 </Card>
               ))}
             </div>

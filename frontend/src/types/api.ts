@@ -202,12 +202,16 @@ export interface Embarquement {
   startDate: string;
   endDate: string;
   days: number;               // Durée calculée en jours
-  status: string;             // DECLARED, SUBMITTED, VERIFIED, REJECTED
+  // DECLARED, AWAITING_PAYMENT, SUBMITTED, INFO_REQUESTED, VERIFIED, REJECTED
+  status: string;
   // Première pièce historique, antérieure à la gestion multi-pièces.
   // Conservée en lecture : les embarquements déjà déposés restent valides.
   proofUrl: string | null;
   proofs?: PieceDeposee[];
   rejectReason: string | null;
+  // Pièces complémentaires demandées par l'agent. Distinct d'un rejet : le
+  // dossier revient au marin sans être refusé, et sans nouveaux frais.
+  additionalInfo: string | null;
   fonction: Fonction | null;
   marin?: MarinIdentite;
 }

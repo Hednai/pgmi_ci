@@ -61,12 +61,58 @@ export const VERIFIABLE_DOCUMENT_STATUSES: DocumentStatus[] = [
 // ---- Sea Service ----
 export const EMBARKATION_STATUS = {
   DECLARED: "DECLARED",
+  // Pièces complètes, frais de validation engagés mais pas encore confirmés.
+  // Le dossier n'est pas parti à la DGAM et n'entre dans aucune file (R23).
+  AWAITING_PAYMENT: "AWAITING_PAYMENT",
   SUBMITTED: "SUBMITTED",
+  // Pièces complémentaires demandées par l'agent. Le retour en soumission
+  // est gratuit : les frais de validation ne se paient qu'une fois (R23).
+  INFO_REQUESTED: "INFO_REQUESTED",
   VERIFIED: "VERIFIED",
   REJECTED: "REJECTED",
 } as const;
 export type EmbarkationStatus =
   (typeof EMBARKATION_STATUS)[keyof typeof EMBARKATION_STATUS];
+
+// Matrice des transitions autorisées, sur le modèle de REQUEST_TRANSITIONS.
+// Toute transition absente est refusée par le service : le cycle de vie ne
+// peut pas être court-circuité par un appel direct à l'API.
+//
+// DECLARED mène à SUBMITTED sans passer par le paiement lorsque la DGAM
+// n'a fixé aucun tarif : l'absence de barème vaut exonération.
+// REJECTED mène à SUBMITTED, le marin corrige et renvoie lui-même, et à
+// INFO_REQUESTED, l'agent rouvre le dossier avec un message. Les deux voies
+// de recours de R25 coexistent, et aucune ne donne lieu à un nouveau
+// paiement.
+export const EMBARKATION_TRANSITIONS: Record<EmbarkationStatus, EmbarkationStatus[]> = {
+  DECLARED: ["AWAITING_PAYMENT", "SUBMITTED"],
+  AWAITING_PAYMENT: ["SUBMITTED"],
+  SUBMITTED: ["VERIFIED", "INFO_REQUESTED", "REJECTED"],
+  INFO_REQUESTED: ["SUBMITTED"],
+  VERIFIED: [],
+  REJECTED: ["SUBMITTED", "INFO_REQUESTED"],
+};
+
+// Statuts dont le dossier reste entre les mains du marin : il peut déposer
+// une pièce, en retirer une, et soumettre. La liste est explicite plutôt
+// que déduite par exclusion, afin qu'un statut ajouté plus tard ne devienne
+// pas modifiable sans décision.
+export const EMBARKATION_EDITABLE_STATUSES: EmbarkationStatus[] = [
+  EMBARKATION_STATUS.DECLARED,
+  EMBARKATION_STATUS.AWAITING_PAYMENT,
+  EMBARKATION_STATUS.INFO_REQUESTED,
+  EMBARKATION_STATUS.REJECTED,
+];
+
+// Statuts dont les jours sont comptés comme en attente de vérification.
+// AWAITING_PAYMENT en est exclu : la DGAM n'attend rien d'un dossier dont
+// les frais ne sont pas réglés, le compteur ne doit pas le présenter comme
+// en instance.
+export const EMBARKATION_PENDING_STATUSES: EmbarkationStatus[] = [
+  EMBARKATION_STATUS.DECLARED,
+  EMBARKATION_STATUS.SUBMITTED,
+  EMBARKATION_STATUS.INFO_REQUESTED,
+];
 
 // ---- Demandes ----
 export const REQUEST_STATUS = {
@@ -133,6 +179,16 @@ export const PAYMENT_STATUS = {
 } as const;
 export type PaymentStatus =
   (typeof PAYMENT_STATUS)[keyof typeof PAYMENT_STATUS];
+
+// Objet réglé par un paiement. La colonne targetType du modèle Payment a
+// été ouverte au lot 5A ; les valeurs vivent ici pour qu'aucun service
+// n'écrive la chaîne en clair.
+export const PAYMENT_TARGET = {
+  REQUEST: "REQUEST",
+  EMBARKATION: "EMBARKATION",
+  NAVIGATION_RECORD: "NAVIGATION_RECORD",
+} as const;
+export type PaymentTarget = (typeof PAYMENT_TARGET)[keyof typeof PAYMENT_TARGET];
 
 export const PAYMENT_CHANNEL = {
   MOBILE_MONEY: "MOBILE_MONEY",

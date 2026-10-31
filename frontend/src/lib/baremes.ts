@@ -20,6 +20,16 @@ export const FORME_BAREME = {
 
 export type FormeBareme = (typeof FORME_BAREME)[keyof typeof FORME_BAREME];
 
+// Codes des prestations tarifées de la plateforme, miroir de
+// backend/src/domain/prestations.ts. Un écran qui a besoin d'un tarif
+// précis le désigne par ce code plutôt que par une chaîne écrite sur place.
+export const SERVICE_TARIFE = {
+  EMBARKATION_VALIDATION: "EMBARKATION_VALIDATION",
+  NAVIGATION_RECORD: "NAVIGATION_RECORD",
+} as const;
+
+export type ServiceTarife = (typeof SERVICE_TARIFE)[keyof typeof SERVICE_TARIFE];
+
 // Natures de demande tarifables pour un certificat. La liste vient du
 // dictionnaire : en ajouter une ne demande de toucher à aucun écran.
 export const NATURES_DEMANDE: string[] = Object.keys(t.demandes.type);

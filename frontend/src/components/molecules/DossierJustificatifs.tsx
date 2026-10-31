@@ -21,16 +21,27 @@ import {
   obtenirContraintesDepot,
   tailleLisible,
 } from "../../lib/contraintesDepot.js";
-import { dossierModifiable } from "../../lib/embarquements.js";
+import { dossierModifiable, reglementAttendu } from "../../lib/embarquements.js";
+import { ReglementMouvement } from "./ReglementMouvement.js";
 import type { ContraintesDepot } from "../../lib/contraintesDepot.js";
 import type { Embarquement, PieceAttendue, PieceDeposee } from "../../types/api.js";
 
 interface ProprietesDossier {
   embarquement: Embarquement;
+  // Frais de validation du mouvement, lus dans la grille tarifaire par
+  // l'écran appelant. Zéro signifie gratuit, le dossier part alors
+  // directement en vérification.
+  montantValidation: number;
+  deviseValidation: string;
   surChangement: () => Promise<void> | void;
 }
 
-export function DossierJustificatifs({ embarquement, surChangement }: ProprietesDossier) {
+export function DossierJustificatifs({
+  embarquement,
+  montantValidation,
+  deviseValidation,
+  surChangement,
+}: ProprietesDossier) {
   const [attendues, setAttendues] = useState<PieceAttendue[] | null>(null);
   const [contraintes, setContraintes] = useState<ContraintesDepot | null>(null);
   const [referentielIndisponible, setReferentielIndisponible] = useState(false);
@@ -66,6 +77,11 @@ export function DossierJustificatifs({ embarquement, surChangement }: Proprietes
   });
 
   const complet = attendues !== null && manquantes.length === 0;
+
+  // Un dossier complet dont les frais ne sont pas encore réglés passe par le
+  // paiement ; tout autre retour du marin, après rejet ou demande de pièces,
+  // est gratuit et se resoumet directement (R23).
+  const aRegler = complet && reglementAttendu(embarquement.status, montantValidation);
 
   async function deposer(code: string, fichier: File) {
     setErreur("");
@@ -221,6 +237,16 @@ export function DossierJustificatifs({ embarquement, surChangement }: Proprietes
         })}
       </ul>
 
+      {/* Message de l'agent quand il attend des pièces complémentaires. Le
+          marin doit lire ce qui lui est demandé avant de redéposer. */}
+      {embarquement.additionalInfo && (
+        <div className="mt-3">
+          <Alerte ton="alerte" titre={t.serviceMer.complementDemande}>
+            {embarquement.additionalInfo}
+          </Alerte>
+        </div>
+      )}
+
       {erreur && <div className="mt-3"><Alerte ton="erreur">{erreur}</Alerte></div>}
 
       {/* Le dossier verrouillé n'affiche ni ce qui manque ni le bouton
@@ -234,9 +260,18 @@ export function DossierJustificatifs({ embarquement, surChangement }: Proprietes
             </p>
           )}
 
-          <Button pleineLargeur chargement={soumission} disabled={!complet} onClick={soumettre} className="mt-3">
-            {t.serviceMer.justificatifs.soumettre}
-          </Button>
+          {aRegler ? (
+            <ReglementMouvement
+              embarquementId={embarquement.id}
+              montantDu={montantValidation}
+              devise={deviseValidation}
+              surReglement={surChangement}
+            />
+          ) : (
+            <Button pleineLargeur chargement={soumission} disabled={!complet} onClick={soumettre} className="mt-3">
+              {t.serviceMer.justificatifs.soumettre}
+            </Button>
+          )}
         </>
       ) : (
         <div className="mt-3">

@@ -7,7 +7,17 @@
 // jamais dans le calcul de conformité.
 // ============================================
 import { prisma } from "../../lib/prisma.js";
-import { EMBARKATION_STATUS } from "../../domain/status.js";
+import {
+  EMBARKATION_STATUS,
+  EMBARKATION_EDITABLE_STATUSES,
+  EMBARKATION_PENDING_STATUSES,
+  EMBARKATION_TRANSITIONS,
+  PAYMENT_STATUS,
+} from "../../domain/status.js";
+import type { EmbarkationStatus } from "../../domain/status.js";
+import { soumissionMouvementAutorisee } from "../../domain/rules.js";
+import { SERVICE_TARIFE } from "../../domain/prestations.js";
+import { lireMontantPrestation } from "../referentials/referentials.service.js";
 import { calculerJoursEmbarquement, formaterDate } from "../../utils/dates.js";
 import { logAction, AUDIT_ACTION } from "../../utils/auditLog.js";
 import { storage } from "../../services/storage/storage.service.js";
@@ -79,10 +89,13 @@ export const calculerTotaux = async (marinId: string) => {
       where: { marinId, status: EMBARKATION_STATUS.VERIFIED },
       _sum: { days: true },
     }),
+    // Un dossier en attente de paiement n'est pas compté : la DGAM n'attend
+    // rien tant que les frais ne sont pas réglés, et afficher ces jours
+    // comme en instance laisserait croire à un contrôle en cours.
     prisma.embarkation.aggregate({
       where: {
         marinId,
-        status: { in: [EMBARKATION_STATUS.DECLARED, EMBARKATION_STATUS.SUBMITTED] },
+        status: { in: EMBARKATION_PENDING_STATUSES },
       },
       _sum: { days: true },
     }),
@@ -200,6 +213,64 @@ export const declarerEmbarquement = async (
   return embarquement;
 };
 
+// Transition de statut, contrôlée par la matrice du domaine. Le cycle de
+// vie ne peut pas être court-circuité par un appel direct à l'API : une
+// soumission sans paiement ou une vérification d'un dossier déjà vérifié
+// sont refusées ici, avant toute écriture.
+const exigerTransition = (actuel: string, cible: EmbarkationStatus): void => {
+  const autorisees = EMBARKATION_TRANSITIONS[actuel as EmbarkationStatus] ?? [];
+
+  if (!autorisees.includes(cible)) {
+    throw new BusinessRuleError(
+      `Ce dossier est au statut ${actuel}, cette action n'y est pas possible.`,
+      "R4",
+    );
+  }
+};
+
+// Vrai si un paiement confirmé est rattaché à ce mouvement. C'est la seule
+// condition de R23 : le nombre de passages par INFO_REQUESTED ou par un
+// rejet n'entre pas en compte, un mouvement payé reste payé.
+const paiementConfirmeSur = async (embarquementId: string): Promise<boolean> => {
+  const regles = await prisma.payment.count({
+    where: { embarkationId: embarquementId, status: PAYMENT_STATUS.PAID },
+  });
+  return regles > 0;
+};
+
+// Frais de validation d'un mouvement, lus dans la grille tarifaire
+// administrable. Aucun montant n'existe dans le code : une grille vide vaut
+// gratuité, et la DGAM change le tarif sans redéploiement.
+export const montantValidationMouvement = () =>
+  lireMontantPrestation(SERVICE_TARIFE.EMBARKATION_VALIDATION);
+
+// Contrôle des pièces obligatoires. Extrait de la soumission : le règlement
+// des frais en a besoin à l'identique, et il serait malvenu d'encaisser un
+// paiement sur un dossier que la soumission refusera ensuite.
+const exigerDossierComplet = (embarquement: {
+  proofUrl: string | null;
+  proofs: { kind: string }[];
+}): void => {
+  // Les pièces historiques n'ont pas de type : un embarquement déclaré
+  // avant la gestion multi-pièces et déjà pourvu d'un proofUrl reste
+  // soumissible, sinon la correction casserait des dossiers en cours.
+  const heritee = Boolean(embarquement.proofUrl) && embarquement.proofs.length === 0;
+  const manquantes = heritee ? [] : piecesObligatoiresManquantes(embarquement.proofs);
+
+  if (manquantes.length === 0) return;
+
+  const libelles = manquantes
+    .map(function (code) {
+      return definitionPiece(code)?.libelle ?? code;
+    })
+    .join(" ; ");
+
+  throw new BusinessRuleError(
+    `Dossier incomplet. Pièces obligatoires manquantes : ${libelles}.`,
+    "R11",
+  );
+};
+
 // Embarquement du marin, contrôlé : existence, appartenance au dossier,
 // et possibilité de le modifier encore. Les trois contrôles étaient écrits
 // dans la soumission ; le dépôt de pièce en a besoin à l'identique.
@@ -215,16 +286,18 @@ const embarquementModifiable = async (embarquementId: string, marinId: string) =
     throw new ForbiddenError("Cet embarquement ne figure pas dans votre dossier.");
   }
 
-  // Un dossier transmis à la DGAM n'est plus modifiable : ni dépôt, ni
-  // retrait, ni nouvelle soumission tant que l'instruction n'est pas close.
-  if (embarquement.status === EMBARKATION_STATUS.SUBMITTED) {
-    throw new BusinessRuleError(
-      "Ce dossier est en cours de vérification à la DGAM et ne peut plus être modifié.",
-      "R4",
-    );
-  }
+  // La liste des statuts modifiables est déclarée dans le domaine : un
+  // statut ajouté plus tard n'y entre pas par défaut.
+  if (!EMBARKATION_EDITABLE_STATUSES.includes(embarquement.status as EmbarkationStatus)) {
+    // Un dossier transmis à la DGAM n'est plus modifiable : ni dépôt, ni
+    // retrait, ni nouvelle soumission tant que l'instruction n'est pas close.
+    if (embarquement.status === EMBARKATION_STATUS.SUBMITTED) {
+      throw new BusinessRuleError(
+        "Ce dossier est en cours de vérification à la DGAM et ne peut plus être modifié.",
+        "R4",
+      );
+    }
 
-  if (embarquement.status === EMBARKATION_STATUS.VERIFIED) {
     throw new BusinessRuleError("Cet embarquement est déjà vérifié.");
   }
 
@@ -336,32 +409,98 @@ export const retirerPieceEmbarquement = async (
   });
 };
 
-// Soumettre l'embarquement à vérification, une fois les pièces déposées.
-export const soumettreEmbarquement = async (embarquementId: string, marinId: string) => {
+// Dossier prêt à être réglé : pièces complètes, frais dus, rien d'encaissé.
+// Appelé avant d'engager le moindre paiement, pour ne jamais prendre
+// d'argent sur un dossier que la soumission refusera ensuite.
+export const verifierDossierPayable = async (embarquementId: string, marinId: string) => {
   const embarquement = await embarquementModifiable(embarquementId, marinId);
+  exigerDossierComplet(embarquement);
 
-  // Les pièces historiques n'ont pas de type : un embarquement déclaré
-  // avant la gestion multi-pièces et déjà pourvu d'un proofUrl reste
-  // soumissible, sinon la correction casserait des dossiers en cours.
-  const heritee = Boolean(embarquement.proofUrl) && embarquement.proofs.length === 0;
-  const manquantes = heritee ? [] : piecesObligatoiresManquantes(embarquement.proofs);
-
-  if (manquantes.length > 0) {
-    const libelles = manquantes
-      .map(function (code) {
-        return definitionPiece(code)?.libelle ?? code;
-      })
-      .join(" ; ");
-
+  if (await paiementConfirmeSur(embarquementId)) {
     throw new BusinessRuleError(
-      `Dossier incomplet. Pièces obligatoires manquantes : ${libelles}.`,
-      "R11",
+      "Les frais de validation de ce mouvement sont déjà réglés. " +
+        "Un mouvement ne se paie qu'une fois.",
+      "R23",
     );
   }
 
+  const frais = await montantValidationMouvement();
+
+  if (frais.montant <= 0) {
+    throw new BusinessRuleError(
+      "Aucun frais n'est dû pour ce mouvement. Soumettez directement votre dossier.",
+    );
+  }
+
+  return { embarquement, ...frais };
+};
+
+// Suite d'un règlement. Un paiement confirmé fait partir le dossier en
+// vérification ; un paiement encore en attente, cas d'un opérateur Mobile
+// Money asynchrone, laisse le dossier en attente de confirmation.
+export const confirmerPaiementMouvement = async (embarquementId: string) => {
+  const embarquement = await prisma.embarkation.findUnique({
+    where: { id: embarquementId },
+  });
+  if (!embarquement) throw new NotFoundError("Embarquement introuvable.");
+
+  if (await paiementConfirmeSur(embarquementId)) {
+    return soumettreEmbarquement(embarquementId, embarquement.marinId);
+  }
+
+  exigerTransition(embarquement.status, EMBARKATION_STATUS.AWAITING_PAYMENT);
+
   const actualise = await prisma.embarkation.update({
     where: { id: embarquementId },
-    data: { status: EMBARKATION_STATUS.SUBMITTED, rejectReason: null },
+    data: { status: EMBARKATION_STATUS.AWAITING_PAYMENT },
+    include: INCLUDE_EMBARQUEMENT,
+  });
+
+  await consignerEvenement({
+    embarkationId: embarquementId,
+    status: EMBARKATION_STATUS.AWAITING_PAYMENT,
+  });
+
+  diffuser({
+    evenement: EVENEMENT.EMBARQUEMENT_STATUT,
+    donnees: { embarquementId, statut: EMBARKATION_STATUS.AWAITING_PAYMENT },
+    marinId: embarquement.marinId,
+  });
+
+  return actualise;
+};
+
+// Soumettre l'embarquement à vérification, une fois les pièces déposées et
+// les frais réglés. Un dossier déjà payé repasse ici autant de fois que
+// l'instruction l'exige, sans nouveau règlement (R23).
+export const soumettreEmbarquement = async (embarquementId: string, marinId: string) => {
+  const embarquement = await embarquementModifiable(embarquementId, marinId);
+  exigerDossierComplet(embarquement);
+
+  // R23 : le paiement conditionne la soumission, et un montant nul vaut
+  // exonération. La condition est portée par le domaine, pas par ce service.
+  const frais = await montantValidationMouvement();
+  const paiementConfirme = await paiementConfirmeSur(embarquementId);
+
+  if (!soumissionMouvementAutorisee({ feeAmount: frais.montant, paiementConfirme })) {
+    throw new BusinessRuleError(
+      "Les frais de validation de ce mouvement doivent être réglés avant la soumission.",
+      "R23",
+    );
+  }
+
+  exigerTransition(embarquement.status, EMBARKATION_STATUS.SUBMITTED);
+
+  const actualise = await prisma.embarkation.update({
+    where: { id: embarquementId },
+    data: {
+      status: EMBARKATION_STATUS.SUBMITTED,
+      rejectReason: null,
+      // Le message de complément porte sur la soumission précédente : le
+      // laisser affiché après un nouvel envoi désignerait des pièces qui
+      // viennent d'être fournies.
+      additionalInfo: null,
+    },
     include: INCLUDE_EMBARQUEMENT,
   });
 
@@ -436,6 +575,8 @@ export const verifierEmbarquement = async (embarquementId: string, acteur: Acteu
     );
   }
 
+  exigerTransition(embarquement.status, EMBARKATION_STATUS.VERIFIED);
+
   const actualise = await prisma.embarkation.update({
     where: { id: embarquementId },
     data: {
@@ -485,11 +626,81 @@ export const verifierEmbarquement = async (embarquementId: string, acteur: Acteu
   return actualise;
 };
 
+// Demander des pièces complémentaires. Le dossier revient au marin sans
+// être refusé, et sans nouveau paiement : R23 n'admet qu'un seul règlement
+// par mouvement. C'est aussi la voie de réouverture d'un dossier rejeté
+// prévue par R25.
+export const demanderComplementEmbarquement = async (
+  embarquementId: string,
+  motif: string,
+  acteur: Acteur,
+) => {
+  const embarquement = await prisma.embarkation.findUnique({
+    where: { id: embarquementId },
+  });
+  if (!embarquement) throw new NotFoundError("Embarquement introuvable.");
+
+  exigerTransition(embarquement.status, EMBARKATION_STATUS.INFO_REQUESTED);
+
+  const actualise = await prisma.embarkation.update({
+    where: { id: embarquementId },
+    data: {
+      status: EMBARKATION_STATUS.INFO_REQUESTED,
+      additionalInfo: motif,
+      // Le dossier n'est plus refusé : le motif de rejet précédent n'a plus
+      // lieu d'être affiché au marin.
+      rejectReason: null,
+    },
+    include: INCLUDE_EMBARQUEMENT,
+  });
+
+  await logAction({
+    actorType: "AGENT",
+    actorId: acteur.id,
+    actorLabel: acteur.label,
+    action: AUDIT_ACTION.EMBARKATION_INFO_REQUESTED,
+    targetType: "Embarkation",
+    targetId: embarquementId,
+    metadata: { motif, statutPrecedent: embarquement.status },
+  });
+
+  await consignerEvenement({
+    embarkationId: embarquementId,
+    status: EMBARKATION_STATUS.INFO_REQUESTED,
+    reason: motif,
+    acteur,
+  });
+
+  diffuser({
+    evenement: EVENEMENT.EMBARQUEMENT_STATUT,
+    donnees: { embarquementId, statut: EMBARKATION_STATUS.INFO_REQUESTED },
+    marinId: actualise.marinId,
+  });
+
+  await notifierMarin({
+    marinId: actualise.marinId,
+    evenement: NOTIFICATION_EVENT.REQUEST_STATUS_CHANGED,
+    contenu:
+      `PGMI : la DGAM attend des pièces complémentaires pour votre embarquement sur ` +
+      `${actualise.vesselName}. ${motif} Le dépôt est gratuit, vos frais restent acquis.`,
+  });
+
+  return actualise;
+};
+
 export const rejeterEmbarquement = async (
   embarquementId: string,
   motif: string,
   acteur: Acteur,
 ) => {
+  const existant = await prisma.embarkation.findUnique({
+    where: { id: embarquementId },
+    select: { status: true },
+  });
+  if (!existant) throw new NotFoundError("Embarquement introuvable.");
+
+  exigerTransition(existant.status, EMBARKATION_STATUS.REJECTED);
+
   const actualise = await prisma.embarkation.update({
     where: { id: embarquementId },
     data: { status: EMBARKATION_STATUS.REJECTED, rejectReason: motif },
@@ -525,7 +736,12 @@ export const rejeterEmbarquement = async (
   await notifierMarin({
     marinId: actualise.marinId,
     evenement: NOTIFICATION_EVENT.REQUEST_STATUS_CHANGED,
-    contenu: `PGMI : votre preuve d'embarquement sur ${actualise.vesselName} n'a pas été acceptée. Motif : ${motif}`,
+    // R25 : le motif seul laisse le marin sans recours. Le message indique
+    // donc la démarche possible, au guichet, avec ses justificatifs.
+    contenu:
+      `PGMI : votre preuve d'embarquement sur ${actualise.vesselName} n'a pas été acceptée. ` +
+      `Motif : ${motif} Vous pouvez corriger vos pièces et soumettre de nouveau, sans ` +
+      `nouveaux frais, ou vous présenter au bureau de la DGAM avec vos justificatifs.`,
   });
 
   return actualise;

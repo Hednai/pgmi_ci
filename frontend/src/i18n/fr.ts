@@ -258,10 +258,22 @@ export const fr = {
     verifiePar: "Vérifié par la DGAM",
     statut: {
       DECLARED: "Déclaré",
+      AWAITING_PAYMENT: "En attente de paiement",
       SUBMITTED: "En vérification",
+      INFO_REQUESTED: "Pièces demandées",
       VERIFIED: "Vérifié",
       REJECTED: "Rejeté",
     } as Record<string, string>,
+    complementDemande: "La DGAM attend des pièces complémentaires",
+    // Règlement des frais de validation d'un mouvement. Le montant n'est
+    // jamais ici : il vient de la grille tarifaire administrable.
+    reglement: {
+      fraisValidation: "Frais de validation de ce mouvement",
+      note: "Ces frais se règlent une seule fois. Si la DGAM vous demande des pièces complémentaires, le nouveau dépôt est gratuit.",
+      moyen: "Moyen de paiement",
+      choisirMoyen: "Choisir un moyen de paiement",
+      payerEtSoumettre: "Payer et soumettre",
+    },
   },
 
   conformite: {
@@ -491,6 +503,12 @@ export const fr = {
     approuver: "Approuver",
     rejeter: "Rejeter",
     demanderPieces: "Demander des pièces",
+    demanderComplement: "Demander des pièces complémentaires",
+    messageComplement: "Pièces attendues du marin",
+    messageComplementAide:
+      "Dix caractères au minimum. Ce texte est envoyé au marin tel quel, écrivez ce qu'il doit déposer.",
+    rejetRecours:
+      "Le marin est informé qu'il peut corriger ses pièces sans nouveaux frais, ou se présenter au bureau avec ses justificatifs.",
     motifRejet: "Motif du rejet",
     motifObligatoire: "Un rejet exige un motif écrit.",
     piecesAttendues: "Pièces attendues",

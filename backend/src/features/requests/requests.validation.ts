@@ -3,7 +3,8 @@
 // Schémas Zod du workflow de demande.
 // ============================================
 import { z } from "zod";
-import { REQUEST_TYPE, REQUEST_STATUS, MOBILE_MONEY_OPERATORS, PAYMENT_CHANNEL } from "../../domain/status.js";
+import { REQUEST_TYPE, REQUEST_STATUS } from "../../domain/status.js";
+import { reglementSchema } from "../../services/payment/payment.validation.js";
 import { fichierSchema } from "../documents/documents.validation.js";
 import { MAX_ATTACHMENTS_PER_REQUEST } from "../../domain/rules.js";
 
@@ -34,16 +35,9 @@ export const demandePourEleveSchema = soumissionDemandeSchema.extend({
   marinId: z.string().trim().min(1, "Élève concerné requis"),
 });
 
-export const paiementSchema = z
-  .object({
-    canal: z.enum([PAYMENT_CHANNEL.MOBILE_MONEY, PAYMENT_CHANNEL.CASH]),
-    operateur: z.enum(MOBILE_MONEY_OPERATORS).optional(),
-    telephonePayeur: z.string().trim().max(20).optional(),
-  })
-  .refine(
-    (donnees) => donnees.canal !== PAYMENT_CHANNEL.MOBILE_MONEY || Boolean(donnees.operateur),
-    { message: "Choisissez un opérateur Mobile Money.", path: ["operateur"] },
-  );
+// Le règlement d'une demande suit le schéma commun du service de paiement.
+// Le nom local est conservé pour les routes qui l'importent déjà.
+export const paiementSchema = reglementSchema;
 
 export const assignationSchema = z.object({
   agentId: z.string().trim().min(1, "Agent destinataire requis"),

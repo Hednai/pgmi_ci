@@ -51,11 +51,24 @@ export const rejetEmbarquementSchema = z.object({
   reason: z.string().trim().min(5, "Motif obligatoire").max(300),
 });
 
+// Demande de pièces complémentaires. Le message est adressé au marin et
+// doit lui dire quoi déposer : un motif de cinq caractères ne l'aiderait
+// pas, la longueur minimale est donc plus exigeante que pour un rejet.
+export const complementEmbarquementSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(10, "Indiquez au marin les pièces attendues.")
+    .max(500),
+});
+
 export const filtreEmbarquementsSchema = z.object({
   status: z
     .enum([
       EMBARKATION_STATUS.DECLARED,
+      EMBARKATION_STATUS.AWAITING_PAYMENT,
       EMBARKATION_STATUS.SUBMITTED,
+      EMBARKATION_STATUS.INFO_REQUESTED,
       EMBARKATION_STATUS.VERIFIED,
       EMBARKATION_STATUS.REJECTED,
     ])

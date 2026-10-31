@@ -27,6 +27,11 @@ export const RULES = {
   R19: "Une inscription ARSTM vaut vérification d'identité en personne",
   R20: "L'attribution du matricule reste soumise à validation DGAM",
   R21: "L'ARSTM soumet une demande mais ne l'approuve jamais",
+  R22: "Un marin ne sert que sur un navire à la fois",
+  R23: "Le paiement d'un mouvement ne se repaie jamais",
+  R24: "Un relevé de navigation n'expire pas, chaque édition est payante",
+  R25: "Un rejet est motivé, indique la voie de recours, et reste réouvrable",
+  R26: "Un mouvement vérifié et un relevé portent un QR code opposable",
 } as const;
 export type RuleId = keyof typeof RULES;
 
@@ -61,6 +66,18 @@ export const instructionAutorisee = (contexte: ContexteInstruction): boolean => 
 
   return contexte.paiementConfirme;
 };
+
+// R23, « Le paiement d'un mouvement ne se repaie jamais ».
+// La condition est celle de R8 : un montant nul vaut exonération, un montant
+// dû exige un paiement confirmé. La règle délègue donc plutôt que de
+// réécrire la même condition, mais elle porte son propre nom parce qu'elle
+// s'applique à un autre objet et qu'un message d'erreur doit citer R23.
+//
+// Conséquence directe : un dossier qui porte déjà un paiement confirmé
+// repasse librement par INFO_REQUESTED puis SUBMITTED, autant de fois que
+// l'instruction l'exige, sans nouveau règlement.
+export const soumissionMouvementAutorisee = (contexte: ContexteInstruction): boolean =>
+  instructionAutorisee(contexte);
 
 // ---- Paramètres dérivés des règles ----
 

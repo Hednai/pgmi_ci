@@ -17,6 +17,7 @@ import { EnteteEcran, TuileChiffre } from "../../components/layouts/EnteteEcran.
 import { DossierJustificatifs } from "../../components/molecules/DossierJustificatifs.js";
 import { useFluxTempsReel } from "../../hooks/useFluxTempsReel.js";
 import { EVENEMENTS_ECRAN } from "../../lib/evenements.js";
+import { SERVICE_TARIFE } from "../../lib/baremes.js";
 import type { DossierServiceMer, Embarquement } from "../../types/api.js";
 
 const MS_JOUR = 24 * 60 * 60 * 1000;
@@ -54,7 +55,12 @@ export function ServiceMerPage() {
   // Erreurs de validation rattachées à un champ du formulaire de déclaration
   const [erreursChamps, setErreursChamps] = useState(AUCUNE_ERREUR.parChamp);
   const [envoi, setEnvoi] = useState(false);
-  const { fonctions, charger } = useReferentielStore();
+  const { fonctions, charger, baremeService } = useReferentielStore();
+
+  // Frais de validation d'un mouvement, lus une fois pour tout l'écran. La
+  // grille tarifaire est déjà chargée par le magasin des référentiels : il
+  // n'y a ni appel supplémentaire ni montant écrit dans le code.
+  const fraisValidation = baremeService(SERVICE_TARIFE.EMBARKATION_VALIDATION);
 
   const [formulaire, setFormulaire] = useState({
     vesselName: "", imoNumber: "", flag: "", vesselType: "", fonctionId: "", startDate: "", endDate: "",
@@ -234,6 +240,8 @@ export function ServiceMerPage() {
                         {!verifie && (
                           <DossierJustificatifs
                             embarquement={embarquement}
+                            montantValidation={fraisValidation?.amount ?? 0}
+                            deviseValidation={fraisValidation?.currency ?? ""}
                             surChangement={rafraichir}
                           />
                         )}
