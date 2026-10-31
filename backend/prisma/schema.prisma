@@ -283,6 +283,9 @@ model Embarkation {
   status           String    @default("DECLARED")
   proofUrl         String?
   rejectReason     String?
+  // Message de l'agent quand il attend des pièces complémentaires (R23).
+  // Distinct de rejectReason : un dossier à compléter n'est pas refusé.
+  additionalInfo   String?
   verifiedById     String?
   verifiedBy       Agent?    @relation("EmbarkationVerifiedBy", fields: [verifiedById], references: [id])
   verifiedAt       DateTime?

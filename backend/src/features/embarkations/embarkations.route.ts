@@ -7,10 +7,12 @@ import { requireMarin, requireActiveMarin, requireAgent } from "../../middleware
 import { requireRole } from "../../middleware/rbac.js";
 import { validateBody, validateQuery } from "../../middleware/validate.js";
 import { DGAM_DECISION_ROLES } from "../../domain/roles.js";
+import { reglementSchema } from "../../services/payment/payment.validation.js";
 import {
   declarationEmbarquementSchema,
   depotPieceSchema,
   rejetEmbarquementSchema,
+  complementEmbarquementSchema,
   filtreEmbarquementsSchema,
 } from "./embarkations.validation.js";
 import {
@@ -19,10 +21,12 @@ import {
   deposerPiece,
   retirerPiece,
   soumettrePreuve,
+  payerMouvement,
   piecesAttendues,
   aVerifier,
   dossierDuMarin,
   verifier,
+  demanderComplement,
   rejeter,
 } from "./embarkations.controller.js";
 
@@ -59,6 +63,15 @@ seaServiceRouter.delete(
 );
 seaServiceRouter.post("/me/:id/soumission", requireMarin, requireActiveMarin, soumettrePreuve);
 
+// Règlement des frais de validation du mouvement, avant soumission (R23).
+seaServiceRouter.post(
+  "/me/:id/paiement",
+  requireMarin,
+  requireActiveMarin,
+  validateBody(reglementSchema),
+  payerMouvement,
+);
+
 // ---- Agents DGAM ----
 seaServiceRouter.get(
   "/a-verifier",
@@ -78,6 +91,15 @@ seaServiceRouter.post(
   requireAgent,
   requireRole(...DGAM_DECISION_ROLES),
   verifier,
+);
+// Demande de pièces complémentaires, gratuite pour le marin (R23). Sert
+// aussi à rouvrir un dossier rejeté (R25).
+seaServiceRouter.post(
+  "/:id/complement",
+  requireAgent,
+  requireRole(...DGAM_DECISION_ROLES),
+  validateBody(complementEmbarquementSchema),
+  demanderComplement,
 );
 seaServiceRouter.post(
   "/:id/rejet",
