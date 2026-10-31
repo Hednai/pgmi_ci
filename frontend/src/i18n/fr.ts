@@ -588,6 +588,11 @@ export const fr = {
     fonctions: "Fonctions maritimes",
     certificats: "Types de certificats",
     baremes: "Barèmes des frais",
+    services: {
+      EMBARKATION_VALIDATION: "Validation d'un mouvement",
+      NAVIGATION_RECORD: "Relevé de navigation",
+    } as Record<string, string>,
+    prestationInconnue: "Prestation non répertoriée",
     validite: "Validité",
     mois: "mois",
     formationRequise: "Formation requise",

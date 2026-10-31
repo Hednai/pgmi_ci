@@ -60,11 +60,13 @@ export interface TypeCertificat {
   requirementsFor?: Prerequis[];    // Prérequis pour ce certificat
 }
 
-// Barème des frais par type de certificat et type de demande
+// Barème des frais. Une ligne tarife soit un type de certificat, soit une
+// prestation de la plateforme désignée par son code de service.
 export interface Bareme {
   id: string;
-  certificateTypeId: string;
-  requestType: string;   // FIRST_ISSUANCE, RENEWAL, DUPLICATE, UPGRADE
+  certificateTypeId: string | null;
+  serviceCode: string | null; // EMBARKATION_VALIDATION, NAVIGATION_RECORD
+  requestType: string;   // FIRST_ISSUANCE, RENEWAL, DUPLICATE, UPGRADE, SERVICE
   amount: number;
   currency: string;      // XOF (Franc CFA)
 }

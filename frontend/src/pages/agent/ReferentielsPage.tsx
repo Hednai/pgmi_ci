@@ -80,10 +80,16 @@ export function ReferentielsPage() {
             const certificat = certificats?.find(
               (valeur) => valeur.id === bareme.certificateTypeId,
             );
+            // Une ligne tarife un certificat ou une prestation de la
+            // plateforme. Le libellé vient de la source correspondante.
+            const libelle = bareme.serviceCode
+              ? (t.referentiels.services[bareme.serviceCode] ??
+                 t.referentiels.prestationInconnue)
+              : (certificat?.label ?? t.referentiels.prestationInconnue);
             return (
               <div key={bareme.id} className="flex items-center justify-between px-4 py-2.5">
                 <div className="min-w-0">
-                  <p className="truncate text-sm text-navy">{certificat?.label ?? "—"}</p>
+                  <p className="truncate text-sm text-navy">{libelle}</p>
                   <p className="text-xs text-ardoise">{bareme.requestType}</p>
                 </div>
                 <span className="shrink-0 text-sm font-semibold text-orange-ci">
