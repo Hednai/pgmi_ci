@@ -23,7 +23,7 @@ import { EnteteAgent, BarreFiltres } from "../../components/layouts/EnteteAgent.
 import { PieceJointe } from "../../components/molecules/PieceJointe.js";
 import { useFluxTempsReel } from "../../hooks/useFluxTempsReel.js";
 import { EVENEMENTS_ECRAN } from "../../lib/evenements.js";
-import { dateCourte, initiales } from "../../lib/format.js";
+import { dateCourte, initiales, nomComplet } from "../../lib/format.js";
 import type { DocumentMaritime, Embarquement, Pagine } from "../../types/api.js";
 
 type Onglet = "documents" | "embarquements";
@@ -100,12 +100,12 @@ export function VerificationsAgentPage() {
                 <Card key={document.id} className="space-y-3">
                   <div className="flex items-start gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-navy text-[10px] font-bold text-white">
-                      {initiales(document.marin ? document.marin.fullName : "")}
+                      {initiales(nomComplet(document.marin))}
                     </span>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-navy">{document.certificateType.label}</p>
                       <p className="mt-0.5 truncate text-xs text-ardoise">
-                        {document.marin ? document.marin.fullName : ""}
+                        {nomComplet(document.marin)}
                         {document.marin?.matricule ? `, ${document.marin.matricule}` : ""}
                       </p>
                       <p className="matricule mt-0.5 text-xs text-ardoise">
@@ -153,7 +153,7 @@ export function VerificationsAgentPage() {
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-navy">{embarquement.vesselName}</p>
                       <p className="mt-0.5 truncate text-xs text-ardoise">
-                        {embarquement.marin ? embarquement.marin.fullName : ""}
+                        {nomComplet(embarquement.marin)}
                         {embarquement.marin?.matricule ? `, ${embarquement.marin.matricule}` : ""}
                       </p>
                       <p className="mt-0.5 text-xs text-ardoise">
