@@ -61,15 +61,44 @@ const libererPlusTard = (url: string) => {
 };
 
 // Ouvrir une pièce dans un nouvel onglet.
-// Le repli en navigation directe couvre les navigateurs mobiles qui
-// bloquent window.open hors interaction immédiate.
+//
+// L'onglet est ouvert AVANT la récupération du contenu, et sans noopener :
+// appelé après une attente, window.open perd l'activation de l'utilisateur et
+// le navigateur le refuse. Le repli basculait alors l'onglet courant sur la
+// pièce, et l'agent perdait sa file de vérification.
 export const ouvrirPieceJointe = async (cheminFichier: string): Promise<void> => {
-  const url = await telechargerBlob(cheminFichier);
-  const onglet = window.open(url, "_blank", "noopener,noreferrer");
-  if (!onglet) {
-    window.location.href = url;
+  const onglet = window.open("", "_blank");
+
+  let url: string;
+  try {
+    url = await telechargerBlob(cheminFichier);
+  } catch (err) {
+    onglet?.close();
+    throw err;
   }
+
+  if (onglet) {
+    onglet.location.href = url;
+    // Le lien vers la fenêtre d'origine est coupé une fois la navigation
+    // lancée : la pièce ne doit pas pouvoir piloter l'écran de travail.
+    onglet.opener = null;
+  } else {
+    // Onglet refusé par le navigateur : la pièce est enregistrée plutôt que
+    // de remplacer l'écran en cours.
+    declencherEnregistrement(url, t.pieces.nomParDefaut);
+  }
+
   libererPlusTard(url);
+};
+
+// Déclencher le téléchargement d'une URL déjà obtenue.
+const declencherEnregistrement = (url: string, nomPropose: string): void => {
+  const lien = document.createElement("a");
+  lien.href = url;
+  lien.download = nomPropose;
+  document.body.appendChild(lien);
+  lien.click();
+  document.body.removeChild(lien);
 };
 
 // Enregistrer une pièce sous le nom d'origine.
@@ -78,11 +107,6 @@ export const enregistrerPieceJointe = async (
   nomPropose: string,
 ): Promise<void> => {
   const url = await telechargerBlob(cheminFichier);
-  const lien = document.createElement("a");
-  lien.href = url;
-  lien.download = nomPropose;
-  document.body.appendChild(lien);
-  lien.click();
-  document.body.removeChild(lien);
+  declencherEnregistrement(url, nomPropose);
   libererPlusTard(url);
 };

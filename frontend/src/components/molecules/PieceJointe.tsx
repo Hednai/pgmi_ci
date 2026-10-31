@@ -55,6 +55,16 @@ export function PieceJointe({
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3">
+        {/* Le nom du fichier identifie la pièce, il n'agit pas. Les deux
+            gestes de l'agent, regarder et garder une copie, portent chacun
+            leur propre libellé. */}
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-navy">
+          <Icone nom="documents" taille={13} className="shrink-0" />
+          <span className="max-w-[220px] truncate">
+            {libelleLien ?? nomFichier}
+          </span>
+        </span>
+
         <button
           type="button"
           disabled={enCours}
@@ -63,12 +73,9 @@ export function PieceJointe({
               return ouvrirPieceJointe(fileUrl as string);
             });
           }}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-navy-light hover:underline disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded-lg border border-navy px-2.5 py-1 text-[11px] font-semibold text-navy transition-colors hover:bg-navy-soft disabled:opacity-50"
         >
-          <Icone nom="documents" taille={13} className="shrink-0" />
-          <span className="max-w-[220px] truncate">
-            {libelleLien ?? nomFichier}
-          </span>
+          {t.pieces.consulter}
         </button>
 
         {avecTelechargement && (

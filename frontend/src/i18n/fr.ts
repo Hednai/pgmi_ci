@@ -109,7 +109,8 @@ export const fr = {
   // une route authentifiée : les messages d'échec sont donc communs à tous
   // les écrans qui en affichent une.
   pieces: {
-    telecharger: "Enregistrer",
+    consulter: "Consulter",
+    telecharger: "Télécharger",
     nomParDefaut: "Pièce justificative",
     aucunFichier: "Aucun fichier joint.",
     accesRefuse: "Votre habilitation ne permet pas de consulter cette pièce.",
@@ -239,6 +240,8 @@ export const fr = {
       incomplet: "Pièces obligatoires manquantes :",
       choisirFichier: "Choisir un fichier",
       choisirAutreFichier: "Remplacer le fichier",
+      dossierVerrouille:
+        "Dossier transmis à la DGAM. Les pièces ne peuvent plus être modifiées tant que la vérification est en cours.",
       soumettre: "Soumettre le dossier à la DGAM",
     },
     aucun: "Aucun embarquement déclaré.",
@@ -247,7 +250,6 @@ export const fr = {
     joursColonne: "Jours",
     preuveSoumise: "Preuve soumise, en attente de vérification",
     dossierASoumettre: "Déposez vos justificatifs puis soumettez ce dossier à la DGAM.",
-    dossierEnAttente: "Dossier soumis. La DGAM vérifiera vos jours de mer sur pièces.",
     dossierRejete: "Dossier refusé. Corrigez les pièces indiquées puis soumettez de nouveau.",
     piecesDeposees: "Pièces déposées",
     historique: "Historique du dossier",
