@@ -52,6 +52,26 @@ function afficher(donnees) {
     echapper(donnees.message) +
     "</p></div>";
 
+  // Un code désigne un document ou un mouvement vérifié, jamais les deux.
+  // Le mouvement porte ses propres lignes : navire, période et jours, qui
+  // sont le contenu opposable d'un temps de mer (R26).
+  if (donnees.mouvement) {
+    var mouvement = donnees.mouvement;
+    html += '<div class="carte"><dl>';
+    html += ligne("Objet", "Temps de mer vérifié");
+    html += ligne("Navire", mouvement.navire);
+    html += ligne("Numéro IMO", mouvement.imo, true);
+    html += ligne("Marin", mouvement.titulaire);
+    html += ligne("Matricule", mouvement.matricule, true);
+    html += ligne("Fonction à bord", mouvement.fonction);
+    html += ligne("Embarqué le", mouvement.embarqueLe);
+    html += ligne("Débarqué le", mouvement.debarqueLe);
+    html += ligne("Jours comptabilisés", mouvement.jours);
+    html += ligne("Autorité", mouvement.autorite);
+    html += ligne("Code de vérification", mouvement.code, true);
+    html += "</dl></div>";
+  }
+
   if (donnees.document) {
     var doc = donnees.document;
     html += '<div class="carte">';

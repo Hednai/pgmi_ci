@@ -16,6 +16,13 @@ import {
 } from "../../domain/status.js";
 import type { EmbarkationStatus } from "../../domain/status.js";
 import { soumissionMouvementAutorisee } from "../../domain/rules.js";
+import {
+  signQrPayload,
+  QR_CIBLE,
+  buildVerificationUrl,
+  generateQrDataUrl,
+} from "../../lib/qrcode.js";
+import { attribuerCodeVerification } from "../verification/codeVerification.service.js";
 import { SERVICE_TARIFE } from "../../domain/prestations.js";
 import { lireMontantPrestation } from "../referentials/referentials.service.js";
 import { calculerJoursEmbarquement, formaterDate } from "../../utils/dates.js";
@@ -577,12 +584,25 @@ export const verifierEmbarquement = async (embarquementId: string, acteur: Acteu
 
   exigerTransition(embarquement.status, EMBARKATION_STATUS.VERIFIED);
 
+  // R26 : un mouvement vérifié devient opposable sans papier. Il reçoit
+  // donc son code court et son jeton signé au moment de la vérification,
+  // exactement comme un document. Un code déjà attribué est conservé : une
+  // attestation imprimée ne doit jamais cesser de répondre.
+  const code = embarquement.verificationCode ?? (await attribuerCodeVerification());
+
   const actualise = await prisma.embarkation.update({
     where: { id: embarquementId },
     data: {
       status: EMBARKATION_STATUS.VERIFIED,
       verifiedById: acteur.id,
       verifiedAt: new Date(),
+      verificationCode: code,
+      qrToken: signQrPayload({
+        cible: QR_CIBLE.EMBARKATION,
+        cibleId: embarquementId,
+        code,
+        issuedAt: Date.now(),
+      }),
       // Recalcul de sécurité : les dates ont pu être corrigées entre-temps
       days: calculerJoursEmbarquement(embarquement.startDate, embarquement.endDate),
     },
@@ -596,7 +616,7 @@ export const verifierEmbarquement = async (embarquementId: string, acteur: Acteu
     action: AUDIT_ACTION.EMBARKATION_VERIFY,
     targetType: "Embarkation",
     targetId: embarquementId,
-    metadata: { navire: embarquement.vesselName, jours: actualise.days },
+    metadata: { navire: embarquement.vesselName, jours: actualise.days, code },
   });
 
   await consignerEvenement({
@@ -620,7 +640,9 @@ export const verifierEmbarquement = async (embarquementId: string, acteur: Acteu
   await notifierMarin({
     marinId: embarquement.marinId,
     evenement: NOTIFICATION_EVENT.REQUEST_STATUS_CHANGED,
-    contenu: `PGMI : votre embarquement sur ${embarquement.vesselName} est vérifié. ${actualise.days} jours comptabilisés.`,
+    contenu:
+      `PGMI : votre embarquement sur ${embarquement.vesselName} est vérifié. ` +
+      `${actualise.days} jours comptabilisés. Code de vérification : ${code}`,
   });
 
   return actualise;
@@ -686,6 +708,39 @@ export const demanderComplementEmbarquement = async (
   });
 
   return actualise;
+};
+
+// QR et code court d'un mouvement vérifié, servis au marin.
+// Calqué sur obtenirQrDocument : même forme de réponse, donc le même
+// composant d'affichage côté écran.
+export const obtenirQrMouvement = async (embarquementId: string, marinId: string) => {
+  const embarquement = await prisma.embarkation.findUnique({
+    where: { id: embarquementId },
+    include: { fonction: true },
+  });
+
+  if (!embarquement) throw new NotFoundError("Embarquement introuvable.");
+
+  if (embarquement.marinId !== marinId) {
+    throw new ForbiddenError("Cet embarquement ne figure pas dans votre dossier.");
+  }
+
+  if (!embarquement.verificationCode) {
+    throw new BusinessRuleError(
+      "Ce mouvement n'a pas encore été vérifié par la DGAM.",
+      "R26",
+    );
+  }
+
+  return {
+    code: embarquement.verificationCode,
+    url: buildVerificationUrl(embarquement.verificationCode),
+    // Vignette de repli : l'écran produit la sienne, celle-ci sert quand le
+    // rendu navigateur échoue.
+    image: await generateQrDataUrl(embarquement.verificationCode),
+    navire: embarquement.vesselName,
+    jours: embarquement.days,
+  };
 };
 
 export const rejeterEmbarquement = async (

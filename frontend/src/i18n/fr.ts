@@ -264,7 +264,15 @@ export const fr = {
       VERIFIED: "Vérifié",
       REJECTED: "Rejeté",
     } as Record<string, string>,
-    complementDemande: "La DGAM attend des pièces complémentaires",
+        complementDemande: "La DGAM attend des pièces complémentaires",
+    // QR code d'un mouvement vérifié, présenté au contrôle (R26)
+    qr: {
+      afficher: "Afficher le QR de ce mouvement",
+      codeVerification: "Code de vérification",
+      instruction:
+        "Faites scanner ce QR code lors d'un contrôle. L'autorité voit le navire, la période et les jours comptabilisés, sans papier.",
+      indisponible: "Le QR code n'a pas pu être affiché. Communiquez le code ci-dessous.",
+    },
     // Règlement des frais de validation d'un mouvement. Le montant n'est
     // jamais ici : il vient de la grille tarifaire administrable.
     reglement: {

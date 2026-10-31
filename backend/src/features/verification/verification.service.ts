@@ -34,6 +34,20 @@ export interface ResultatVerification {
     photoUrl: string | null;
     autorite: string;
   };
+  // Mouvement vérifié, renvoyé quand le code désigne un embarquement et non
+  // un document. Les deux blocs ne coexistent jamais (R26).
+  mouvement?: {
+    navire: string;
+    imo: string | null;
+    titulaire: string;
+    matricule: string | null;
+    fonction: string | null;
+    embarqueLe: string;
+    debarqueLe: string;
+    jours: number;
+    code: string;
+    autorite: string;
+  };
   remplacePar?: string;
   message: string;
 }
@@ -147,6 +161,86 @@ const verifierParMatricule = async (
   };
 };
 
+// Vérification d'un mouvement par son code court (R26).
+// Retourne null si le code ne désigne aucun mouvement : l'appelant
+// poursuivra alors sa propre réponse « code inconnu ».
+//
+// Seul un mouvement vérifié porte un code, la question de son statut ne se
+// pose donc pas : s'il répond, il est opposable.
+const verifierMouvement = async (
+  code: string,
+  req?: Request,
+): Promise<ResultatVerification | null> => {
+  const mouvement = await prisma.embarkation.findUnique({
+    where: { verificationCode: code },
+    select: {
+      id: true,
+      vesselName: true,
+      imoNumber: true,
+      startDate: true,
+      endDate: true,
+      days: true,
+      fonction: { select: { label: true } },
+      marin: {
+        select: {
+          firstName: true,
+          lastName: true,
+          matricule: true,
+          authority: { select: { name: true } },
+        },
+      },
+    },
+  });
+
+  if (!mouvement) return null;
+
+  // Le scan est journalisé comme celui d'un document : R5 ne distingue pas
+  // les objets. La colonne documentId reste nulle, le journal d'audit porte
+  // la cible réelle.
+  await prisma.qRVerificationLog.create({
+    data: {
+      verificationCode: code,
+      documentId: null,
+      result: "FOUND",
+      ip: req?.ip ?? null,
+      userAgent: req?.headers["user-agent"] ?? null,
+    },
+  });
+
+  await logAction({
+    actorType: "PUBLIC",
+    action: AUDIT_ACTION.QR_VERIFICATION,
+    targetType: "Embarkation",
+    targetId: mouvement.id,
+    metadata: { code, trouve: true },
+    req,
+  });
+
+  return {
+    trouve: true,
+    statut: "VERIFIED",
+    libelleStatut: "Mouvement vérifié",
+    valide: true,
+    message:
+      "Ce temps de mer a été contrôlé sur pièces par la Direction Générale " +
+      "des Affaires Maritimes et compte dans le service en mer du marin.",
+    mouvement: {
+      navire: mouvement.vesselName,
+      imo: mouvement.imoNumber,
+      // R10 : le nom reste partiellement masqué, y compris ici. Le matricule
+      // et la fonction suffisent à rapprocher la fiche du livret présenté.
+      titulaire: masquerNom(`${mouvement.marin.firstName} ${mouvement.marin.lastName}`),
+      matricule: mouvement.marin.matricule,
+      fonction: mouvement.fonction?.label ?? null,
+      embarqueLe: formaterDate(mouvement.startDate),
+      debarqueLe: formaterDate(mouvement.endDate),
+      jours: mouvement.days,
+      code,
+      autorite: mouvement.marin.authority.name,
+    },
+  };
+};
+
 // Vérifier un code. Ne lève jamais : un code inconnu est une réponse
 // métier normale, pas une erreur technique.
 export const verifierCode = async (
@@ -183,6 +277,13 @@ export const verifierCode = async (
     },
   });
 
+  // Documents et mouvements partagent le même espace de codes : un code qui
+  // ne désigne aucun document peut désigner un mouvement vérifié.
+  if (!document) {
+    const mouvement = await verifierMouvement(codeNormalise, req);
+    if (mouvement) return mouvement;
+  }
+
   await prisma.qRVerificationLog.create({
     data: {
       verificationCode: codeNormalise,
@@ -209,7 +310,8 @@ export const verifierCode = async (
       libelleStatut: "Code inconnu",
       valide: false,
       message:
-        "Aucun document ne correspond à ce code. Vérifiez la saisie ou signalez le document.",
+        "Aucun document ni mouvement ne correspond à ce code. Vérifiez la saisie " +
+        "ou signalez la pièce présentée.",
     };
   }
 

@@ -15,12 +15,12 @@ import {
 } from "../../domain/status.js";
 import type { DocumentStatus } from "../../domain/status.js";
 import {
-  generateVerificationCode,
   signQrPayload,
   QR_CIBLE,
   buildVerificationUrl,
   generateQrDataUrl,
 } from "../../lib/qrcode.js";
+import { attribuerCodeVerification } from "../verification/codeVerification.service.js";
 import { storage } from "../../services/storage/storage.service.js";
 import { logAction, AUDIT_ACTION } from "../../utils/auditLog.js";
 import { NotFoundError, BusinessRuleError, ForbiddenError } from "../../utils/errors.js";
@@ -43,19 +43,9 @@ const INCLUDE_DOCUMENT = {
   verifiedBy: { select: { firstName: true, lastName: true } },
 } as const;
 
-// Un code de vérification unique. La collision est traitée par nouvel essai
-// plutôt que par une exception remontée à l'agent.
-const attribuerCodeVerification = async (): Promise<string> => {
-  for (let essai = 0; essai < 6; essai += 1) {
-    const candidat = generateVerificationCode();
-    const existant = await prisma.document.findUnique({
-      where: { verificationCode: candidat },
-      select: { id: true },
-    });
-    if (!existant) return candidat;
-  }
-  throw new BusinessRuleError("Impossible de générer un code de vérification.");
-};
+// L'attribution du code vit dans son propre service : depuis que les
+// mouvements portent eux aussi un QR, l'unicité se contrôle sur les deux
+// tables et non plus sur les seuls documents.
 
 // Statut effectif d'un document à l'instant de la lecture.
 // Un certificat dont la date est dépassée est présenté comme expiré sans

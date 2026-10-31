@@ -15,6 +15,7 @@ import { InputField, SelectField } from "../../components/atoms/Field.js";
 import { Alerte, ChargementPage } from "../../components/atoms/Feedback.js";
 import { EnteteEcran, TuileChiffre } from "../../components/layouts/EnteteEcran.js";
 import { DossierJustificatifs } from "../../components/molecules/DossierJustificatifs.js";
+import { QrMouvement } from "../../components/molecules/QrMouvement.js";
 import { useFluxTempsReel } from "../../hooks/useFluxTempsReel.js";
 import { EVENEMENTS_ECRAN } from "../../lib/evenements.js";
 import { SERVICE_TARIFE } from "../../lib/baremes.js";
@@ -51,6 +52,9 @@ function ColonneInfo({ libelle: etiquette, valeur, couleur = "text-navy" }: { li
 export function ServiceMerPage() {
   const [dossier, setDossier] = useState<DossierServiceMer | null>(null);
   const [ouvert, setOuvert] = useState(false);
+  // Mouvement dont le QR est affiché. Un seul à la fois : deux vignettes
+  // ouvertes sur un écran de téléphone ne seraient pas lisibles.
+  const [qrOuvert, setQrOuvert] = useState<string | null>(null);
   const [erreur, setErreur] = useState("");
   // Erreurs de validation rattachées à un champ du formulaire de déclaration
   const [erreursChamps, setErreursChamps] = useState(AUCUNE_ERREUR.parChamp);
@@ -227,6 +231,22 @@ export function ServiceMerPage() {
                             <Icone nom="verifie" taille={13} className="shrink-0 text-teal-sea" />
                             <span className="text-[11px] font-medium text-teal-sea">{t.serviceMer.verifiePar}</span>
                           </div>
+                        )}
+
+                        {/* Un mouvement vérifié est opposable : son QR se
+                            présente au contrôle à la place du livret (R26). */}
+                        {verifie && (
+                          qrOuvert === embarquement.id ? (
+                            <QrMouvement
+                              embarquementId={embarquement.id}
+                              onFermer={function () { setQrOuvert(null); }}
+                            />
+                          ) : (
+                            <Button variante="discret" taille="sm" className="mt-2"
+                              onClick={function () { setQrOuvert(embarquement.id); }}>
+                              {t.serviceMer.qr.afficher}
+                            </Button>
+                          )
                         )}
 
                         {embarquement.rejectReason && (
