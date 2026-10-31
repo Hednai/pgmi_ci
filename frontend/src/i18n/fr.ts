@@ -237,6 +237,8 @@ export const fr = {
       facultatif: "(facultatif)",
       remplacement: "Déposer un nouveau fichier remplace le précédent.",
       incomplet: "Pièces obligatoires manquantes :",
+      choisirFichier: "Choisir un fichier",
+      choisirAutreFichier: "Remplacer le fichier",
       soumettre: "Soumettre le dossier à la DGAM",
     },
     aucun: "Aucun embarquement déclaré.",
