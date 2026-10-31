@@ -206,17 +206,22 @@ model CertificateRequirement {
   @@index([targetId])
 }
 
-// Barème des frais, par type de certificat et type de demande.
+// Grille tarifaire administrable par la DGAM (EF-015). Une ligne tarife
+// soit un type de certificat, soit une prestation de la plateforme désignée
+// par son code. Aucun montant n'est écrit dans le code.
 model FeeSchedule {
-  id                String          @id @default(cuid())
-  certificateTypeId String
-  certificateType   CertificateType @relation(fields: [certificateTypeId], references: [id], onDelete: Cascade)
+  id                String           @id @default(cuid())
+  certificateTypeId String?
+  certificateType   CertificateType? @relation(fields: [certificateTypeId], references: [id], onDelete: Cascade)
+  // EMBARKATION_VALIDATION | NAVIGATION_RECORD
+  serviceCode       String?
   requestType       String
   amount            Int
-  currency          String          @default("XOF")
-  isActive          Boolean         @default(true)
+  currency          String           @default("XOF")
+  isActive          Boolean          @default(true)
 
   @@unique([certificateTypeId, requestType])
+  @@unique([serviceCode, requestType])
 }
 
 // ---- Documents ----
@@ -262,29 +267,34 @@ model Document {
 // Embarquement déclaré par le marin. Seuls les jours vérifiés comptent
 // pour le moteur de conformité (R13).
 model Embarkation {
-  id           String             @id @default(cuid())
-  marinId      String
-  marin        Marin              @relation(fields: [marinId], references: [id], onDelete: Cascade)
-  vesselName   String
-  imoNumber    String?
-  flag         String?
-  vesselType   String?
-  fonctionId   String?
-  fonction     Fonction?          @relation(fields: [fonctionId], references: [id])
-  startDate    DateTime
-  endDate      DateTime
+  id               String    @id @default(cuid())
+  marinId          String
+  marin            Marin     @relation(fields: [marinId], references: [id], onDelete: Cascade)
+  vesselName       String
+  imoNumber        String?
+  flag             String?
+  vesselType       String?
+  fonctionId       String?
+  fonction         Fonction? @relation(fields: [fonctionId], references: [id])
+  startDate        DateTime
+  endDate          DateTime
   // Calculé côté serveur, jamais fourni par le client
-  days         Int                @default(0)
-  status       String             @default("DECLARED")
-  proofUrl     String?
-  rejectReason String?
-  verifiedById String?
-  verifiedBy   Agent?             @relation("EmbarkationVerifiedBy", fields: [verifiedById], references: [id])
-  verifiedAt   DateTime?
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  events       EmbarkationEvent[]
-  proofs       EmbarkationProof[]
+  days             Int       @default(0)
+  status           String    @default("DECLARED")
+  proofUrl         String?
+  rejectReason     String?
+  verifiedById     String?
+  verifiedBy       Agent?    @relation("EmbarkationVerifiedBy", fields: [verifiedById], references: [id])
+  verifiedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  // Code court imprimé sous le QR d'un mouvement vérifié : /v/<verificationCode>
+  verificationCode String?   @unique
+  qrToken          String?
+
+  events   EmbarkationEvent[]
+  proofs   EmbarkationProof[]
+  payments Payment[]
 
   @@index([marinId])
   @@index([status])
@@ -424,24 +434,32 @@ model RequestAttachment {
   @@index([requestId])
 }
 
-// Paiement des frais de dossier (Mobile Money ou espèces au guichet).
+// Paiement d'une prestation. Trois prestations sont payantes : une demande
+// de certificat, la validation d'un mouvement, l'édition d'un relevé de
+// navigation. targetType désigne laquelle, et un seul des identifiants
+// optionnels est renseigné.
 model Payment {
-  id          String         @id @default(cuid())
-  requestId   String
-  request     RenewalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  provider    String
-  channel     String // MOBILE_MONEY | CASH
-  amount      Int
-  currency    String         @default("XOF")
-  status      String         @default("PENDING")
-  payerPhone  String?
-  externalRef String?        @unique
-  receiptUrl  String?
-  paidAt      DateTime?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id            String          @id @default(cuid())
+  targetType    String          @default("REQUEST") // REQUEST | EMBARKATION | NAVIGATION_RECORD
+  requestId     String?
+  request       RenewalRequest? @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  embarkationId String?
+  embarkation   Embarkation?    @relation(fields: [embarkationId], references: [id], onDelete: Cascade)
+  provider      String
+  channel       String // MOBILE_MONEY | CASH
+  amount        Int
+  currency      String          @default("XOF")
+  status        String          @default("PENDING")
+  payerPhone    String?
+  externalRef   String?         @unique
+  receiptUrl    String?
+  paidAt        DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   @@index([requestId])
+  @@index([embarkationId])
+  @@index([targetType])
 }
 
 // ---- Formation ARSTM ----
@@ -535,8 +553,11 @@ model AuditLog {
 model QRVerificationLog {
   id               String    @id @default(cuid())
   verificationCode String
+  // Nature de l'objet scanné, renseignée quand le code est reconnu.
+  targetType       String? // DOCUMENT | EMBARKATION | NAVIGATION_RECORD
   documentId       String?
   document         Document? @relation(fields: [documentId], references: [id])
+  embarkationId    String?
   result           String // FOUND | NOT_FOUND
   ip               String?
   userAgent        String?

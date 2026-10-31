@@ -17,6 +17,7 @@ import type { DocumentStatus } from "../../domain/status.js";
 import {
   generateVerificationCode,
   signQrPayload,
+  QR_CIBLE,
   buildVerificationUrl,
   generateQrDataUrl,
 } from "../../lib/qrcode.js";
@@ -212,7 +213,7 @@ export const verifierDocument = async (
       issueDate: donnees.issueDate ?? document.issueDate,
       expiryDate: donnees.expiryDate ?? document.expiryDate,
       verificationCode: code,
-      qrToken: signQrPayload({ documentId, code, issuedAt: Date.now() }),
+      qrToken: signQrPayload({ cible: QR_CIBLE.DOCUMENT, cibleId: documentId, code, issuedAt: Date.now() }),
       verifiedById: acteur.id,
       verifiedAt: new Date(),
     },
@@ -338,7 +339,14 @@ export const delivrerDocumentOfficiel = async (parametres: {
 
   await prisma.document.update({
     where: { id: document.id },
-    data: { qrToken: signQrPayload({ documentId: document.id, code, issuedAt: Date.now() }) },
+    data: {
+      qrToken: signQrPayload({
+        cible: QR_CIBLE.DOCUMENT,
+        cibleId: document.id,
+        code,
+        issuedAt: Date.now(),
+      }),
+    },
   });
 
   // Le coffre documentaire du marin se met à jour pendant qu'il regarde

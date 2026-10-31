@@ -25,9 +25,27 @@ export const generateVerificationCode = (): string => {
   return code;
 };
 
-// Charge utile signée du QR code. Aucune donnée nominative : seul
-// l'identifiant du document circule (R10).
+// Nature de l'objet qu'un QR code atteste.
+export const QR_CIBLE = {
+  DOCUMENT: "DOCUMENT",
+  EMBARKATION: "EMBARKATION",
+  NAVIGATION_RECORD: "NAVIGATION_RECORD",
+} as const;
+export type QrCible = (typeof QR_CIBLE)[keyof typeof QR_CIBLE];
+
+// Charge utile signée du QR code. Aucune donnée nominative : seuls la nature
+// et l'identifiant de l'objet circulent (R10).
 export interface QrPayload {
+  cible: QrCible;
+  cibleId: string;
+  code: string;
+  issuedAt: number;
+}
+
+// Charge utile de la première génération, émise avant l'ouverture du QR aux
+// mouvements et aux relevés. Les QR déjà imprimés sur des documents en
+// circulation portent cette forme : elle reste acceptée en lecture.
+interface QrPayloadHerite {
   documentId: string;
   code: string;
   issuedAt: number;
@@ -55,7 +73,20 @@ export const verifyQrToken = (token: string): QrPayload | null => {
   if (attendue !== signature) return null;
 
   try {
-    return JSON.parse(Buffer.from(corps, "base64url").toString()) as QrPayload;
+    const brut = JSON.parse(Buffer.from(corps, "base64url").toString()) as
+      | QrPayload
+      | QrPayloadHerite;
+
+    // Un jeton hérité ne porte pas de cible : il désigne un document.
+    if ("documentId" in brut) {
+      return {
+        cible: QR_CIBLE.DOCUMENT,
+        cibleId: brut.documentId,
+        code: brut.code,
+        issuedAt: brut.issuedAt,
+      };
+    }
+    return brut;
   } catch {
     return null;
   }
