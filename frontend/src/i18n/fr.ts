@@ -503,6 +503,12 @@ export const fr = {
     approuver: "Approuver",
     rejeter: "Rejeter",
     demanderPieces: "Demander des pièces",
+    demanderComplement: "Demander des pièces complémentaires",
+    messageComplement: "Pièces attendues du marin",
+    messageComplementAide:
+      "Dix caractères au minimum. Ce texte est envoyé au marin tel quel, écrivez ce qu'il doit déposer.",
+    rejetRecours:
+      "Le marin est informé qu'il peut corriger ses pièces sans nouveaux frais, ou se présenter au bureau avec ses justificatifs.",
     motifRejet: "Motif du rejet",
     motifObligatoire: "Un rejet exige un motif écrit.",
     piecesAttendues: "Pièces attendues",
