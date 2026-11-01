@@ -22,7 +22,7 @@ import {
   tailleLisible,
 } from "../../lib/contraintesDepot.js";
 import { dossierModifiable, reglementAttendu } from "../../lib/embarquements.js";
-import { ReglementMouvement } from "./ReglementMouvement.js";
+import { ReglementPrestation } from "./ReglementPrestation.js";
 import type { ContraintesDepot } from "../../lib/contraintesDepot.js";
 import type { Embarquement, PieceAttendue, PieceDeposee } from "../../types/api.js";
 
@@ -261,10 +261,13 @@ export function DossierJustificatifs({
           )}
 
           {aRegler ? (
-            <ReglementMouvement
-              embarquementId={embarquement.id}
+            <ReglementPrestation
+              chemin={`/api/sea-service/me/${embarquement.id}/paiement`}
               montantDu={montantValidation}
               devise={deviseValidation}
+              intitule={t.serviceMer.reglement.fraisValidation}
+              note={t.serviceMer.reglement.note}
+              libelleBouton={t.serviceMer.reglement.payerEtSoumettre}
               surReglement={surChangement}
             />
           ) : (

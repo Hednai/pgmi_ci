@@ -56,8 +56,6 @@ export const fr = {
     email: "Adresse professionnelle",
     prefixePays: "+225",
 
-    // Mot de passe oublié. Seul parcours qui déclenche encore un envoi :
-    // les libellés le disent au marin, pour qu'il n'y revienne pas sans raison.
     oublie: "Mot de passe oublié ?",
     oublieTitre: "Réinitialiser mon mot de passe",
     oublieExplication:
@@ -77,7 +75,6 @@ export const fr = {
     codeDeveloppement: "Code de développement",
   },
 
-  // Filet d'erreur de rendu
   erreur: {
     titre: "Un incident est survenu",
     explication:
@@ -105,9 +102,6 @@ export const fr = {
       "Votre dossier sera activé après vérification de votre identité au guichet DGAM. Votre matricule vous sera alors attribué.",
   },
 
-  // Pièces jointes du registre. Consultation et enregistrement passent par
-  // une route authentifiée : les messages d'échec sont donc communs à tous
-  // les écrans qui en affichent une.
   pieces: {
     consulter: "Consulter",
     telecharger: "Télécharger",
@@ -185,9 +179,6 @@ export const fr = {
     filtreNational: "Livret",
     verifieParDgam: "Vérifié par la DGAM, QR actif",
     renouveler: "Renouveler",
-    // Un certificat renouvelé laisse son ancienne version en base, au statut
-    // Remplacé. Les deux côte à côte donnaient deux « Certificat médical
-    // d'aptitude » sans dire lequel fait foi.
     versionsPrecedentes: "Versions précédentes",
     masquerVersions: "Masquer les versions précédentes",
     versionRemplacee: "Cette version a été remplacée. Elle n'est plus opposable à un contrôle.",
@@ -223,14 +214,9 @@ export const fr = {
     joindrePreuve: "Joindre la preuve",
     preuveAide:
       "Attestation d'armateur ou page du livret. Sans preuve, les jours ne sont pas comptabilisés.",
-    // Dépôt des pièces justificatives. Les libellés des pièces elles-mêmes
-    // ne sont pas ici : ils viennent du référentiel servi par l'API, afin
-    // que l'écran et le contrôle serveur ne puissent pas diverger.
     justificatifs: {
       titre: "Pièces justificatives",
       note: "La DGAM vérifie vos jours de mer sur pièces. Déposez au minimum les deux documents obligatoires ci-dessous, lisibles et complets. Tant qu'une pièce obligatoire manque, le dossier ne peut pas être soumis.",
-      // Les valeurs sont injectées depuis les contraintes servies par l'API :
-      // les formats et la taille ne sont jamais écrits dans le texte.
       contraintes: "Formats acceptés : {formats}. Taille maximale par fichier : {taille}.",
       referentielIndisponible:
         "La liste des pièces attendues n'a pas pu être chargée. Rechargez la page avant de déposer vos justificatifs.",
@@ -265,7 +251,6 @@ export const fr = {
       REJECTED: "Rejeté",
     } as Record<string, string>,
         complementDemande: "La DGAM attend des pièces complémentaires",
-    // QR code d'un mouvement vérifié, présenté au contrôle (R26)
     qr: {
       afficher: "Afficher le QR de ce mouvement",
       codeVerification: "Code de vérification",
@@ -273,8 +258,6 @@ export const fr = {
         "Faites scanner ce QR code lors d'un contrôle. L'autorité voit le navire, la période et les jours comptabilisés, sans papier.",
       indisponible: "Le QR code n'a pas pu être affiché. Communiquez le code ci-dessous.",
     },
-    // Règlement des frais de validation d'un mouvement. Le montant n'est
-    // jamais ici : il vient de la grille tarifaire administrable.
     reglement: {
       fraisValidation: "Frais de validation de ce mouvement",
       note: "Ces frais se règlent une seule fois. Si la DGAM vous demande des pièces complémentaires, le nouveau dépôt est gratuit.",
@@ -357,9 +340,6 @@ export const fr = {
       REJECTED: "Rejetée",
       CANCELLED: "Annulée",
     } as Record<string, string>,
-    // Remarque PGMI-11 : à chaque statut correspond ce que le marin doit
-    // faire, ou ce qu'il doit attendre. Sans cette table, l'écran affiche un
-    // état sans jamais dire la suite, et le marin rappelle le guichet.
     prochaineEtape: {
       SUBMITTED: "Votre demande est enregistrée. La DGAM va l'assigner à un agent instructeur.",
       AWAITING_PAYMENT: "Réglez les frais de dossier pour que l'instruction démarre.",
@@ -374,9 +354,6 @@ export const fr = {
   },
 
   paiement: {
-    // Le serveur signale lui-même qu'il tourne sur un fournisseur de test.
-    // Le marin doit le lire : sans cela, un règlement accepté sans débit
-    // réel passerait pour un paiement abouti.
     modeBacASable:
       "Passerelle de paiement en mode test : aucun montant n'est réellement débité.",
     titre: "Paiement des frais",
@@ -427,8 +404,6 @@ export const fr = {
     dejaInscrit: "Déjà inscrit",
     inscriptionEnregistree:
       "Inscription enregistrée. Elle apparaît dans « Mes inscriptions » ci-dessus.",
-    // Le quorum conditionne l'ouverture de la session (R15). Sans cette
-    // phrase, « 1 inscrits, 5 requis » ne dit pas au marin ce qu'il attend.
     quorumAide:
       "La session démarre dès que le nombre d'inscrits atteint le seuil requis. Vous serez prévenu de la date.",
     statut: {
@@ -552,8 +527,6 @@ export const fr = {
     aucunePieceJointe: "Aucune pièce jointe à cette demande.",
     etapeBloquee: "Cette action n'est pas disponible à ce stade du dossier.",
     reprendreInstruction: "Reprendre l'instruction",
-    // Ce que l'agent doit faire maintenant, selon l'état du dossier. Pendant
-    // des libellés de t.demandes.prochaineEtape, qui s'adressent au marin.
     prochaineEtapeAgent: {
       SUBMITTED: "Dossier à prendre en charge. L'instruction démarre dès que vous l'ouvrez.",
       AWAITING_PAYMENT: "Frais non réglés. L'instruction reste bloquée tant que le paiement n'est pas encaissé (R8).",
@@ -623,7 +596,6 @@ export const fr = {
     validite: "Validité",
     mois: "mois",
     formationRequise: "Formation requise",
-    // Formulaire de création et de modification d'un tarif
     ajouterTarif: "Ajouter un tarif",
     nouveauTarif: "Nouveau tarif",
     modifierTarif: "Modifier le tarif",
@@ -645,6 +617,35 @@ export const fr = {
     montantInvalide: "Le montant doit être un nombre entier, sans espace ni décimale.",
   },
 
+  // Relevé de navigation (R24). Aucun montant ici : le tarif vient de la
+  // grille administrable, servie par l'API.
+  releve: {
+    titre: "Relevé de navigation",
+    acces: "Mon relevé de navigation",
+    joursVerifies: "Jours vérifiés",
+    mouvementsRetenus: "Embarquements",
+    editions: "Éditions",
+    contenu: "Ce que contiendrait un relevé édité aujourd'hui",
+    aucunMouvement:
+      "Aucun embarquement vérifié à votre dossier. Un relevé ne reprend que les mouvements contrôlés par la DGAM.",
+    totalJours: "Total des jours de mer",
+    tarifEdition: "Chaque édition coûte",
+    chaqueEditionPayante:
+      "Un relevé est daté et n'expire pas. Une nouvelle édition se paie, elle ne remplace pas les précédentes.",
+    editionGratuite: "Aucun frais n'est dû pour cette édition.",
+    demander: "Demander un relevé",
+    fraisEdition: "Frais d'édition de ce relevé",
+    payerEtEditer: "Payer et éditer",
+    historique: "Mes relevés",
+    aucuneEdition: "Aucun relevé édité pour l'instant.",
+    statutAttente: "En attente de paiement",
+    delivreLe: "Délivré le",
+    embarquementsRetenus: "embarquements retenus",
+    afficherQr: "Afficher le QR de ce relevé",
+    qrInstruction:
+      "Faites scanner ce QR code lors d'un contrôle. L'autorité voit le total des jours et le détail des embarquements retenus.",
+  },
+
   journal: {
     titre: "Journal des actions",
     sousTitre: "Registre immuable de toutes les opérations sensibles.",
@@ -652,7 +653,6 @@ export const fr = {
     action: "Action",
     cible: "Cible",
     date: "Date",
-    // Libellés lisibles des codes d'action enregistrés par le serveur
     actions: {
       DOCUMENT_VERIFIED: "Document vérifié",
       DOCUMENT_REJECTED: "Document rejeté",

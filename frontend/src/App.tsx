@@ -33,6 +33,9 @@ const DocumentsPage = lazy(async function () {
 const ServiceMerPage = lazy(async function () {
   return { default: (await import("./pages/marin/ServiceMerPage.js")).ServiceMerPage };
 });
+const RelevePage = lazy(async function () {
+  return { default: (await import("./pages/marin/RelevePage.js")).RelevePage };
+});
 const ConformitePage = lazy(async function () {
   return { default: (await import("./pages/marin/ConformitePage.js")).ConformitePage };
 });
@@ -127,6 +130,7 @@ const App = () => {
           <Route path="/accueil" element={<AccueilPage />} />
           <Route path="/documents" element={<DocumentsPage />} />
           <Route path="/service-mer" element={<ServiceMerPage />} />
+          <Route path="/releve" element={<RelevePage />} />
           <Route path="/conformite" element={<ConformitePage />} />
           <Route path="/formations" element={<FormationsPage />} />
           <Route path="/profil" element={<ProfilPage />} />
