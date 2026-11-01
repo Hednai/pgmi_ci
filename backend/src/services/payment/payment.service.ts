@@ -184,6 +184,87 @@ export const reglerMouvement = async (reglement: ReglementMouvement) => {
   return { paiement, resultat };
 };
 
+export interface ReglementReleve {
+  releveId: string;
+  // Montant et devise lus côté serveur, jamais transmis par le navigateur.
+  montant: number;
+  devise: string;
+  canal: PaymentChannel;
+  operateur?: MobileMoneyOperator;
+  telephonePayeur?: string;
+  agentId?: string;
+}
+
+// Régler l'édition d'un relevé de navigation.
+//
+// Troisième objet payable après la demande et le mouvement, même forme.
+// Une différence de fond : R24 veut que chaque édition soit payante. Il n'y
+// a donc pas de contrôle « déjà payé » portant sur le marin, seulement sur
+// l'édition en cours, qui porte sa propre référence.
+export const reglerReleve = async (reglement: ReglementReleve) => {
+  const releve = await prisma.navigationRecord.findUnique({
+    where: { id: reglement.releveId },
+    include: { payments: true },
+  });
+
+  if (!releve) throw new NotFoundError("Relevé de navigation introuvable.");
+
+  const dejaPaye = releve.payments.some(
+    (paiement) => paiement.status === PAYMENT_STATUS.PAID,
+  );
+  if (dejaPaye) {
+    throw new BusinessRuleError("Cette édition est déjà réglée.", "R24");
+  }
+
+  if (reglement.montant <= 0) {
+    throw new BusinessRuleError("Cette édition n'est soumise à aucun frais.");
+  }
+
+  const fournisseur = fournisseurs[reglement.canal];
+
+  const resultat = await fournisseur.initier({
+    reference: releve.reference,
+    montant: reglement.montant,
+    devise: reglement.devise,
+    operateur: reglement.operateur,
+    telephonePayeur: reglement.telephonePayeur,
+    description: `Relevé de navigation ${releve.reference}`,
+  });
+
+  const paiement = await prisma.payment.create({
+    data: {
+      targetType: PAYMENT_TARGET.NAVIGATION_RECORD,
+      navigationRecordId: releve.id,
+      provider: reglement.operateur ?? fournisseur.code,
+      channel: reglement.canal,
+      amount: reglement.montant,
+      currency: reglement.devise,
+      status: resultat.statut,
+      payerPhone: reglement.telephonePayeur ?? null,
+      externalRef: resultat.referenceExterne,
+      paidAt: resultat.statut === PAYMENT_STATUS.PAID ? new Date() : null,
+    },
+  });
+
+  await logAction({
+    actorType: reglement.agentId ? "AGENT" : "MARIN",
+    actorId: reglement.agentId ?? releve.marinId,
+    action:
+      resultat.statut === PAYMENT_STATUS.PAID
+        ? AUDIT_ACTION.PAYMENT_CONFIRMED
+        : AUDIT_ACTION.PAYMENT_INITIATED,
+    targetType: "Payment",
+    targetId: paiement.id,
+    metadata: {
+      reference: releve.reference,
+      montant: reglement.montant,
+      canal: reglement.canal,
+    },
+  });
+
+  return { paiement, resultat };
+};
+
 // Canaux effectivement disponibles, exposés au frontend pour construire
 // l'écran de paiement sans valeur en dur.
 export const listerMoyensDePaiement = () => ({

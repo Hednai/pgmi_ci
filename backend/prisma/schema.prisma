@@ -125,6 +125,7 @@ model Marin {
 
   documents     Document[]
   embarkations  Embarkation[]
+  navigationRecords NavigationRecord[]
   requests      RenewalRequest[]
   notifications MarinNotification[]
   enrollments   TrainingEnrollment[]
@@ -298,6 +299,7 @@ model Embarkation {
   events   EmbarkationEvent[]
   proofs   EmbarkationProof[]
   payments Payment[]
+  navigationEntries NavigationRecordEntry[]
 
   @@index([marinId])
   @@index([status])
@@ -383,6 +385,56 @@ model EmbarkationEvent {
   @@index([embarkationId, createdAt])
 }
 
+// Relevé de navigation : l'agrégat des mouvements vérifiés d'un marin à la
+// date d'édition (R24).
+//
+// Un relevé n'expire pas et ne se recalcule jamais. Chaque édition est un
+// document distinct, daté, payé, et conserve le détail figé des mouvements
+// qu'elle retenait. Un relevé émis en janvier reste lisible et opposable en
+// décembre, même si de nouveaux embarquements ont été vérifiés depuis.
+model NavigationRecord {
+  id               String   @id @default(cuid())
+  reference        String   @unique
+  marinId          String
+  marin            Marin    @relation(fields: [marinId], references: [id], onDelete: Cascade)
+  status           String   @default("AWAITING_PAYMENT")
+  // Date de délivrance, posée au paiement et non à la création
+  issuedAt         DateTime?
+  // Total des jours retenus, figé à l'édition
+  totalDays        Int      @default(0)
+  // Code court imprimé sous le QR : /v/<verificationCode>
+  verificationCode String?  @unique
+  qrToken          String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  entries  NavigationRecordEntry[]
+  payments Payment[]
+
+  @@index([marinId])
+  @@index([status])
+}
+
+// Ligne d'un relevé. Les valeurs sont recopiées depuis l'embarquement au
+// moment de l'édition plutôt que lues par jointure : si une date est
+// corrigée plus tard, le relevé déjà délivré ne doit pas changer.
+model NavigationRecordEntry {
+  id                 String           @id @default(cuid())
+  navigationRecordId String
+  navigationRecord   NavigationRecord @relation(fields: [navigationRecordId], references: [id], onDelete: Cascade)
+  embarkationId      String
+  embarkation        Embarkation      @relation(fields: [embarkationId], references: [id], onDelete: Cascade)
+  vesselName         String
+  imoNumber          String?
+  fonctionLabel      String?
+  startDate          DateTime
+  endDate            DateTime
+  days               Int
+
+  @@unique([navigationRecordId, embarkationId])
+  @@index([navigationRecordId])
+}
+
 // ---- Demandes ----
 
 // Demande de renouvellement ou de première délivrance.
@@ -448,6 +500,8 @@ model Payment {
   request       RenewalRequest? @relation(fields: [requestId], references: [id], onDelete: Cascade)
   embarkationId String?
   embarkation   Embarkation?    @relation(fields: [embarkationId], references: [id], onDelete: Cascade)
+  navigationRecordId String?
+  navigationRecord   NavigationRecord? @relation(fields: [navigationRecordId], references: [id], onDelete: Cascade)
   provider      String
   channel       String // MOBILE_MONEY | CASH
   amount        Int
@@ -462,6 +516,7 @@ model Payment {
 
   @@index([requestId])
   @@index([embarkationId])
+  @@index([navigationRecordId])
   @@index([targetType])
 }
 
