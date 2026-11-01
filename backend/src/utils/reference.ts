@@ -18,6 +18,10 @@ export const genererReferenceDemande = (): string =>
 export const genererCodeSession = (): string =>
   `${PREFIXE.SESSION}-${new Date().getUTCFullYear()}-${suffixe()}`;
 
+// Référence d'un relevé de navigation : REL-2026-0412
+export const genererReferenceReleve = (): string =>
+  `${PREFIXE.RELEVE}-${new Date().getUTCFullYear()}-${suffixe()}`;
+
 // Référence de paiement interne, distincte de la référence de l'opérateur
 export const genererReferencePaiement = (): string =>
   `${PREFIXE.PAIEMENT}-${Date.now().toString(36).toUpperCase()}-${suffixe()}`;

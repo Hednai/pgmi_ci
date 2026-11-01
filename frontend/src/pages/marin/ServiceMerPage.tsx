@@ -3,6 +3,7 @@
 // Registre de service en mer : déclaration des embarquements et preuves.
 // ============================================
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { t, libelle } from "../../i18n/index.js";
 import { api } from "../../lib/apiClient.js";
 import { repartirErreurs, AUCUNE_ERREUR } from "../../lib/erreursFormulaire.js";
@@ -15,7 +16,7 @@ import { InputField, SelectField } from "../../components/atoms/Field.js";
 import { Alerte, ChargementPage } from "../../components/atoms/Feedback.js";
 import { EnteteEcran, TuileChiffre } from "../../components/layouts/EnteteEcran.js";
 import { DossierJustificatifs } from "../../components/molecules/DossierJustificatifs.js";
-import { QrMouvement } from "../../components/molecules/QrMouvement.js";
+import { QrPrestation } from "../../components/molecules/QrPrestation.js";
 import { useFluxTempsReel } from "../../hooks/useFluxTempsReel.js";
 import { EVENEMENTS_ECRAN } from "../../lib/evenements.js";
 import { SERVICE_TARIFE } from "../../lib/baremes.js";
@@ -138,6 +139,16 @@ export function ServiceMerPage() {
       <div className="space-y-4">
         {erreur && <Alerte ton="erreur">{erreur}</Alerte>}
 
+        {/* Le relevé agrège les mouvements vérifiés : il se consulte depuis
+            l'écran qui les porte, sans occuper un onglet de la barre. */}
+        <Link
+          to="/releve"
+          className="flex items-center justify-between rounded-xl border border-bordure bg-white px-4 py-3 text-sm font-semibold text-navy transition-colors hover:bg-navy-soft"
+        >
+          {t.releve.acces}
+          <Icone nom="documents" taille={16} />
+        </Link>
+
         <button type="button" onClick={function () { setOuvert(!ouvert); }}
           className="w-full rounded-xl border-[1.5px] border-dashed border-navy bg-fond py-3.5 text-sm font-semibold text-navy transition-colors hover:bg-navy-soft">
           {ouvert ? t.commun.annuler : (
@@ -237,8 +248,9 @@ export function ServiceMerPage() {
                             présente au contrôle à la place du livret (R26). */}
                         {verifie && (
                           qrOuvert === embarquement.id ? (
-                            <QrMouvement
-                              embarquementId={embarquement.id}
+                            <QrPrestation
+                              chemin={`/api/sea-service/me/${embarquement.id}/qr`}
+                              instruction={t.serviceMer.qr.instruction}
                               onFermer={function () { setQrOuvert(null); }}
                             />
                           ) : (

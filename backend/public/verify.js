@@ -72,6 +72,43 @@ function afficher(donnees) {
     html += "</dl></div>";
   }
 
+  // Relevé de navigation : l'en-tête, puis le détail ligne à ligne. Sans le
+  // détail, un total de jours ne serait pas recoupable avec le livret que
+  // le marin présente (R24).
+  if (donnees.releve) {
+    var releve = donnees.releve;
+    html += '<div class="carte"><dl>';
+    html += ligne("Objet", "Relevé de navigation");
+    html += ligne("Référence", releve.reference, true);
+    html += ligne("Marin", releve.titulaire);
+    html += ligne("Matricule", releve.matricule, true);
+    html += ligne("Délivré le", releve.delivreLe);
+    html += ligne("Total des jours de mer", releve.totalJours);
+    html += ligne("Embarquements retenus", releve.mouvements);
+    html += ligne("Code de vérification", releve.code, true);
+    html += "</dl>";
+
+    if (releve.detail && releve.detail.length) {
+      html += "<dl>";
+      for (var index = 0; index < releve.detail.length; index += 1) {
+        var mouvementReleve = releve.detail[index];
+        html += ligne(
+          mouvementReleve.navire,
+          mouvementReleve.embarqueLe +
+            " au " +
+            mouvementReleve.debarqueLe +
+            ", " +
+            mouvementReleve.jours +
+            " jours" +
+            (mouvementReleve.fonction ? ", " + mouvementReleve.fonction : "")
+        );
+      }
+      html += "</dl>";
+    }
+
+    html += "</div>";
+  }
+
   if (donnees.document) {
     var doc = donnees.document;
     html += '<div class="carte">';

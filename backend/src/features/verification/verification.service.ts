@@ -48,6 +48,24 @@ export interface ResultatVerification {
     code: string;
     autorite: string;
   };
+  // Relevé de navigation délivré. Comme le mouvement, il exclut les deux
+  // autres blocs : un code désigne un objet et un seul (R24, R26).
+  releve?: {
+    reference: string;
+    titulaire: string;
+    matricule: string | null;
+    delivreLe: string | null;
+    totalJours: number;
+    mouvements: number;
+    code: string;
+    detail: {
+      navire: string;
+      fonction: string | null;
+      embarqueLe: string;
+      debarqueLe: string;
+      jours: number;
+    }[];
+  };
   remplacePar?: string;
   message: string;
 }
@@ -241,6 +259,91 @@ const verifierMouvement = async (
   };
 };
 
+// Vérification d'un relevé de navigation par son code court (R24).
+// Retourne null si le code ne désigne aucun relevé délivré.
+//
+// Le relevé affiche son détail : un total de jours sans les mouvements qui
+// le composent ne serait pas opposable, l'autorité doit pouvoir recouper
+// ligne à ligne avec le livret présenté.
+const verifierReleve = async (
+  code: string,
+  req?: Request,
+): Promise<ResultatVerification | null> => {
+  const releve = await prisma.navigationRecord.findUnique({
+    where: { verificationCode: code },
+    select: {
+      id: true,
+      reference: true,
+      issuedAt: true,
+      totalDays: true,
+      marin: {
+        select: { firstName: true, lastName: true, matricule: true },
+      },
+      entries: {
+        orderBy: { startDate: "asc" },
+        select: {
+          vesselName: true,
+          fonctionLabel: true,
+          startDate: true,
+          endDate: true,
+          days: true,
+        },
+      },
+    },
+  });
+
+  if (!releve) return null;
+
+  await prisma.qRVerificationLog.create({
+    data: {
+      verificationCode: code,
+      documentId: null,
+      result: "FOUND",
+      ip: req?.ip ?? null,
+      userAgent: req?.headers["user-agent"] ?? null,
+    },
+  });
+
+  await logAction({
+    actorType: "PUBLIC",
+    action: AUDIT_ACTION.QR_VERIFICATION,
+    targetType: "NavigationRecord",
+    targetId: releve.id,
+    metadata: { code, trouve: true },
+    req,
+  });
+
+  return {
+    trouve: true,
+    statut: "ISSUED",
+    libelleStatut: "Relevé de navigation authentique",
+    valide: true,
+    message:
+      "Ce relevé a été délivré par la Direction Générale des Affaires " +
+      "Maritimes. Il n'expire pas : il atteste du service en mer vérifié à " +
+      "sa date de délivrance.",
+    releve: {
+      reference: releve.reference,
+      // R10 : le nom reste partiellement masqué ici comme ailleurs.
+      titulaire: masquerNom(`${releve.marin.firstName} ${releve.marin.lastName}`),
+      matricule: releve.marin.matricule,
+      delivreLe: releve.issuedAt ? formaterDate(releve.issuedAt) : null,
+      totalJours: releve.totalDays,
+      mouvements: releve.entries.length,
+      code,
+      detail: releve.entries.map(function (ligne) {
+        return {
+          navire: ligne.vesselName,
+          fonction: ligne.fonctionLabel,
+          embarqueLe: formaterDate(ligne.startDate),
+          debarqueLe: formaterDate(ligne.endDate),
+          jours: ligne.days,
+        };
+      }),
+    },
+  };
+};
+
 // Vérifier un code. Ne lève jamais : un code inconnu est une réponse
 // métier normale, pas une erreur technique.
 export const verifierCode = async (
@@ -282,6 +385,9 @@ export const verifierCode = async (
   if (!document) {
     const mouvement = await verifierMouvement(codeNormalise, req);
     if (mouvement) return mouvement;
+
+    const releve = await verifierReleve(codeNormalise, req);
+    if (releve) return releve;
   }
 
   await prisma.qRVerificationLog.create({
@@ -310,8 +416,8 @@ export const verifierCode = async (
       libelleStatut: "Code inconnu",
       valide: false,
       message:
-        "Aucun document ni mouvement ne correspond à ce code. Vérifiez la saisie " +
-        "ou signalez la pièce présentée.",
+        "Aucun document, mouvement ni relevé ne correspond à ce code. Vérifiez " +
+        "la saisie ou signalez la pièce présentée.",
     };
   }
 

@@ -1,14 +1,14 @@
 // ============================================
-// components/molecules/QrMouvement.tsx
-// QR code d'un mouvement vérifié, présenté au contrôle.
+// components/molecules/QrPrestation.tsx
+// QR code d'une pièce opposable : mouvement vérifié ou relevé délivré.
 //
-// Le scan vaut original : un inspecteur au port lit le QR et obtient le
-// navire, la période et les jours comptabilisés sans que le marin ait à
-// sortir un papier (R26).
+// Le scan vaut original : l'autorité lit le QR et obtient le contenu
+// opposable sans papier (R26). La vignette est produite dans le navigateur
+// à partir de l'adresse donnée par le serveur, et le code court reste
+// lisible dessous : si le rendu échoue, il se saisit à la main.
 //
-// La vignette est produite dans le navigateur à partir de l'adresse donnée
-// par le serveur, comme pour un document. Le code court reste lisible
-// dessous : si le rendu échoue, l'inspecteur le saisit à la main.
+// Le composant ne connaît pas l'objet qu'il atteste, il reçoit le chemin à
+// interroger. Les trois routes QR de la plateforme renvoient la même forme.
 // ============================================
 import { useEffect, useState } from "react";
 import { t } from "../../i18n/index.js";
@@ -18,22 +18,26 @@ import { Button } from "../atoms/Button.js";
 import { Alerte, Spinner } from "../atoms/Feedback.js";
 import { useQrCode } from "../../hooks/useQrCode.js";
 
-// Réponse de GET /api/sea-service/me/:id/qr
-interface DonneesQrMouvement {
+// Forme commune des réponses QR de la plateforme. Les champs de contexte
+// diffèrent d'un objet à l'autre, le code et l'adresse ne changent pas.
+interface DonneesQrPrestation {
   code: string;
   url: string;
   image: string;
-  navire: string;
-  jours: number;
+  navire?: string;
+  reference?: string;
+  jours?: number;
 }
 
-interface ProprietesQrMouvement {
-  embarquementId: string;
+interface ProprietesQrPrestation {
+  // Route du QR, par exemple /api/releves/me/<id>/qr
+  chemin: string;
+  instruction: string;
   onFermer: () => void;
 }
 
-export function QrMouvement({ embarquementId, onFermer }: ProprietesQrMouvement) {
-  const [donnees, setDonnees] = useState<DonneesQrMouvement | null>(null);
+export function QrPrestation({ chemin, instruction, onFermer }: ProprietesQrPrestation) {
+  const [donnees, setDonnees] = useState<DonneesQrPrestation | null>(null);
   const [erreur, setErreur] = useState("");
 
   // La vignette n'est demandée qu'une fois l'adresse connue.
@@ -42,13 +46,13 @@ export function QrMouvement({ embarquementId, onFermer }: ProprietesQrMouvement)
   useEffect(
     function chargerQr() {
       api
-        .get<DonneesQrMouvement>(`/api/sea-service/me/${embarquementId}/qr`)
+        .get<DonneesQrPrestation>(chemin)
         .then(setDonnees)
         .catch(function (err) {
           setErreur(err instanceof ErreurApi ? err.message : t.commun.erreurReseau);
         });
     },
-    [embarquementId],
+    [chemin],
   );
 
   return (
@@ -79,11 +83,10 @@ export function QrMouvement({ embarquementId, onFermer }: ProprietesQrMouvement)
             <p className="text-xs text-ardoise">{t.serviceMer.qr.codeVerification}</p>
             <p className="matricule text-xl font-bold text-navy">{donnees.code}</p>
             <p className="mt-1 text-xs text-ardoise">
-              {donnees.navire}, {donnees.jours} {t.commun.jours}
+              {donnees.navire ?? donnees.reference}
+              {donnees.jours !== undefined ? `, ${donnees.jours} ${t.commun.jours}` : ""}
             </p>
-            <p className="mt-3 text-[11px] leading-relaxed text-ardoise">
-              {t.serviceMer.qr.instruction}
-            </p>
+            <p className="mt-3 text-[11px] leading-relaxed text-ardoise">{instruction}</p>
           </>
         )}
 

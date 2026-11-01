@@ -222,6 +222,47 @@ export interface DossierServiceMer {
   totaux: { joursVerifies: number; joursEnAttente: number; embarquements: number };
 }
 
+// Ligne figée d'un relevé de navigation. Les valeurs sont recopiées à
+// l'édition : un relevé délivré ne change plus (R24).
+export interface LigneReleve {
+  id: string;
+  vesselName: string;
+  imoNumber: string | null;
+  fonctionLabel: string | null;
+  startDate: string;
+  endDate: string;
+  days: number;
+}
+
+// Relevé de navigation édité par le marin
+export interface Releve {
+  id: string;
+  reference: string;
+  status: string;          // AWAITING_PAYMENT, ISSUED
+  issuedAt: string | null; // Date de délivrance, nulle tant que non réglé
+  totalDays: number;
+  verificationCode: string | null;
+  entries: LigneReleve[];
+}
+
+// Mouvement vérifié qu'une nouvelle édition retiendrait
+export interface MouvementRetenu {
+  id: string;
+  vesselName: string;
+  startDate: string;
+  endDate: string;
+  days: number;
+  fonction: string | null;
+}
+
+// Écran du relevé : éditions passées, contenu d'une nouvelle édition, tarif
+export interface DossierReleves {
+  releves: Releve[];
+  disponibles: MouvementRetenu[];
+  totalJours: number;
+  tarif: { montant: number; devise: string };
+}
+
 // Message du centre de notifications. Un envoi parti sur plusieurs canaux
 // est regroupé par le serveur : le marin voit un message, pas trois lignes.
 export interface MessageNotification {

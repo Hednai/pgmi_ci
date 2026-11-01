@@ -78,6 +78,7 @@ export const PREFIXE = {
   MATRICULE: "CI-MAR",
   SESSION: "SES",
   PAIEMENT: "PAY",
+  RELEVE: "REL",
 } as const;
 
 // Paramètres du stockage des pièces jointes.

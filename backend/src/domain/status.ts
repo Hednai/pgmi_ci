@@ -114,6 +114,16 @@ export const EMBARKATION_PENDING_STATUSES: EmbarkationStatus[] = [
   EMBARKATION_STATUS.INFO_REQUESTED,
 ];
 
+// ---- Relevé de navigation ----
+// Deux états seulement : un relevé est en attente de règlement, ou délivré.
+// Il n'expire pas et ne se révoque pas (R24).
+export const NAVIGATION_RECORD_STATUS = {
+  AWAITING_PAYMENT: "AWAITING_PAYMENT",
+  ISSUED: "ISSUED",
+} as const;
+export type NavigationRecordStatus =
+  (typeof NAVIGATION_RECORD_STATUS)[keyof typeof NAVIGATION_RECORD_STATUS];
+
 // ---- Demandes ----
 export const REQUEST_STATUS = {
   SUBMITTED: "SUBMITTED",

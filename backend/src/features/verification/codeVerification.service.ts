@@ -3,10 +3,10 @@
 // Attribution d'un code court de vérification.
 //
 // Un seul espace de codes sert la page publique : le scan de /v/<code> doit
-// désigner un objet et un seul. Depuis que les mouvements portent un QR
-// (R26), l'unicité ne peut plus se contrôler sur la seule table des
-// documents, sinon deux objets différents finiraient par répondre au même
-// code et la page publique en servirait un au hasard.
+// désigner un objet et un seul. Depuis que les mouvements et les relevés de
+// navigation portent un QR (R26), l'unicité ne peut plus se contrôler sur la
+// seule table des documents, sinon deux objets différents finiraient par
+// répondre au même code et la page publique en servirait un au hasard.
 //
 // Le tirage reste celui de lib/qrcode.ts : six caractères d'un alphabet sans
 // ambiguïté visuelle, relus à l'oeil sur un papier.
@@ -24,7 +24,7 @@ export const attribuerCodeVerification = async (): Promise<string> => {
   for (let essai = 0; essai < TIRAGES_MAX; essai += 1) {
     const candidat = generateVerificationCode();
 
-    const [document, mouvement] = await Promise.all([
+    const [document, mouvement, releve] = await Promise.all([
       prisma.document.findUnique({
         where: { verificationCode: candidat },
         select: { id: true },
@@ -33,9 +33,13 @@ export const attribuerCodeVerification = async (): Promise<string> => {
         where: { verificationCode: candidat },
         select: { id: true },
       }),
+      prisma.navigationRecord.findUnique({
+        where: { verificationCode: candidat },
+        select: { id: true },
+      }),
     ]);
 
-    if (!document && !mouvement) return candidat;
+    if (!document && !mouvement && !releve) return candidat;
   }
 
   throw new BusinessRuleError("Impossible de générer un code de vérification.");
